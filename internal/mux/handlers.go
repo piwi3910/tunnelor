@@ -47,7 +47,10 @@ func DefaultTCPHandler(ctx context.Context, stream *quicgo.Stream, header *Strea
 		Msg("TCP stream opened, forwarding to target")
 
 	// Forward QUIC stream to TCP target
-	return tcpbridge.QUICToTCP(stream, meta.TargetAddr)
+	if err := tcpbridge.QUICToTCP(stream, meta.TargetAddr); err != nil {
+		return fmt.Errorf("TCP bridge failed: %w", err)
+	}
+	return nil
 }
 
 // DefaultUDPHandler is a default handler for UDP streams
@@ -73,7 +76,10 @@ func DefaultUDPHandler(ctx context.Context, stream *quicgo.Stream, header *Strea
 		Msg("UDP stream opened, forwarding to target")
 
 	// Forward QUIC stream to UDP target
-	return udpbridge.QUICToUDP(ctx, stream, meta.TargetAddr)
+	if err := udpbridge.QUICToUDP(ctx, stream, meta.TargetAddr); err != nil {
+		return fmt.Errorf("UDP bridge failed: %w", err)
+	}
+	return nil
 }
 
 // DefaultRawHandler is a default handler for raw streams
@@ -93,7 +99,7 @@ func echoStream(ctx context.Context, stream *quicgo.Stream) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context cancelled: %w", ctx.Err())
 		default:
 		}
 

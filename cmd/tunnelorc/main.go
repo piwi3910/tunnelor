@@ -125,7 +125,7 @@ func setupTCPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*t
 	// Create TCP listener
 	listener := tcpbridge.NewTCPListener(fwd.Local, fwd.Remote, streamOpener)
 	if err := listener.Start(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start TCP listener: %w", err)
 	}
 
 	// Start serving in background
@@ -168,7 +168,7 @@ func setupUDPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*u
 	// Create UDP listener
 	listener := udpbridge.NewUDPListener(fwd.Local, fwd.Remote, streamOpener)
 	if err := listener.Start(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start UDP listener: %w", err)
 	}
 
 	// Start serving in background

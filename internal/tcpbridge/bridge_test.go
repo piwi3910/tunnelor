@@ -2,6 +2,7 @@ package tcpbridge
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -30,14 +31,22 @@ func (m *mockReadWriteCloser) Read(p []byte) (n int, err error) {
 	if m.closed {
 		return 0, io.EOF
 	}
-	return m.Buffer.Read(p)
+	n, err = m.Buffer.Read(p)
+	if err != nil {
+		return n, fmt.Errorf("mock read failed: %w", err)
+	}
+	return n, nil
 }
 
 func (m *mockReadWriteCloser) Write(p []byte) (n int, err error) {
 	if m.closed {
 		return 0, io.ErrClosedPipe
 	}
-	return m.Buffer.Write(p)
+	n, err = m.Buffer.Write(p)
+	if err != nil {
+		return n, fmt.Errorf("mock write failed: %w", err)
+	}
+	return n, nil
 }
 
 // TestBidirectionalCopy tests the bidirectional copy function

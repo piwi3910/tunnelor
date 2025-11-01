@@ -178,7 +178,11 @@ type StreamReader struct {
 
 // Read reads data from the stream
 func (sr *StreamReader) Read(p []byte) (int, error) {
-	return sr.stream.Read(p)
+	n, err := sr.stream.Read(p)
+	if err != nil {
+		return n, fmt.Errorf("failed to read from stream: %w", err)
+	}
+	return n, nil
 }
 
 // Close closes the read side of the stream
@@ -194,12 +198,19 @@ type StreamWriter struct {
 
 // Write writes data to the stream
 func (sw *StreamWriter) Write(p []byte) (int, error) {
-	return sw.stream.Write(p)
+	n, err := sw.stream.Write(p)
+	if err != nil {
+		return n, fmt.Errorf("failed to write to stream: %w", err)
+	}
+	return n, nil
 }
 
 // Close closes the write side of the stream
 func (sw *StreamWriter) Close() error {
-	return sw.stream.Close()
+	if err := sw.stream.Close(); err != nil {
+		return fmt.Errorf("failed to close stream: %w", err)
+	}
+	return nil
 }
 
 // NewStreamReader creates a new StreamReader for the given stream

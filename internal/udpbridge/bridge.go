@@ -77,7 +77,7 @@ func UDPToQUIC(ctx context.Context, udpConn *net.UDPConn, quicStream *quicgo.Str
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context cancelled: %w", ctx.Err())
 		default:
 		}
 
@@ -139,7 +139,7 @@ func QUICToUDP(ctx context.Context, quicStream *quicgo.Stream, targetAddr string
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context cancelled: %w", ctx.Err())
 		default:
 		}
 

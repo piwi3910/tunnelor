@@ -126,7 +126,10 @@ type StreamWrapper struct {
 
 // CloseWrite closes the write side of the stream
 func (sw *StreamWrapper) CloseWrite() error {
-	return (*sw.Stream).Close()
+	if err := (*sw.Stream).Close(); err != nil {
+		return fmt.Errorf("failed to close stream write side: %w", err)
+	}
+	return nil
 }
 
 // TCPListener listens for TCP connections and forwards them over QUIC
