@@ -6,11 +6,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	quicgo "github.com/quic-go/quic-go"
 	"github.com/piwi3910/tunnelor/internal/config"
 	"github.com/piwi3910/tunnelor/internal/control"
 	"github.com/piwi3910/tunnelor/internal/logger"
 	"github.com/piwi3910/tunnelor/internal/mux"
 	"github.com/piwi3910/tunnelor/internal/quic"
+	"github.com/piwi3910/tunnelor/internal/tcpbridge"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -142,7 +144,58 @@ func runConnect(cmd *cobra.Command, args []string) {
 	// Register default handlers (for responses from server)
 	mux.RegisterDefaultHandlers(multiplexer)
 
-	// TODO: Establish port forwards using multiplexer.OpenStream()
+	// Start TCP forwards
+	var listeners []*tcpbridge.TCPListener
+	for _, fwd := range cfg.Forwards {
+		if fwd.Proto == "tcp" {
+			// Create stream opener function for this forward
+			targetAddr := fwd.Remote
+			streamOpener := func() (*quicgo.Stream, error) {
+				// Encode TCP metadata
+				metadata, err := mux.EncodeTCPMetadata(mux.TCPMetadata{
+					SourceAddr: fwd.Local,
+					TargetAddr: targetAddr,
+				})
+				if err != nil {
+					return nil, err
+				}
+
+				// Open multiplexed stream
+				muxStream, err := multiplexer.OpenStream(mux.ProtocolTCP, metadata)
+				if err != nil {
+					return nil, err
+				}
+
+				return muxStream.Stream, nil
+			}
+
+			// Create TCP listener
+			listener := tcpbridge.NewTCPListener(fwd.Local, fwd.Remote, streamOpener)
+			if err := listener.Start(); err != nil {
+				log.Fatal().Err(err).Str("local", fwd.Local).Msg("Failed to start TCP listener")
+			}
+			listeners = append(listeners, listener)
+
+			// Start serving in background
+			go func(l *tcpbridge.TCPListener) {
+				if err := l.Serve(); err != nil {
+					log.Error().Err(err).Msg("TCP listener error")
+				}
+			}(listener)
+
+			log.Info().
+				Str("local", fwd.Local).
+				Str("remote", fwd.Remote).
+				Msg("TCP forward established")
+		}
+	}
+
+	// Clean up listeners on exit
+	defer func() {
+		for _, l := range listeners {
+			l.Close()
+		}
+	}()
 
 	log.Info().Msg("Tunnelorc client ready")
 

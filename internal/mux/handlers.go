@@ -6,6 +6,7 @@ import (
 	"io"
 
 	quicgo "github.com/quic-go/quic-go"
+	"github.com/piwi3910/tunnelor/internal/tcpbridge"
 	"github.com/rs/zerolog/log"
 )
 
@@ -27,22 +28,23 @@ func DefaultTCPHandler(ctx context.Context, stream *quicgo.Stream, header *Strea
 		Msg("TCP stream handler called")
 
 	// Parse TCP metadata
-	if len(header.Metadata) > 0 {
-		meta, err := DecodeTCPMetadata(header.Metadata)
-		if err != nil {
-			return fmt.Errorf("failed to decode TCP metadata: %w", err)
-		}
-
-		log.Info().
-			Str("source", meta.SourceAddr).
-			Str("target", meta.TargetAddr).
-			Uint64("stream_id", uint64(stream.StreamID())).
-			Msg("TCP stream opened")
+	if len(header.Metadata) == 0 {
+		return fmt.Errorf("TCP stream missing metadata")
 	}
 
-	// TODO: Implement TCP forwarding logic
-	// For now, just echo the stream
-	return echoStream(ctx, stream)
+	meta, err := DecodeTCPMetadata(header.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to decode TCP metadata: %w", err)
+	}
+
+	log.Info().
+		Str("source", meta.SourceAddr).
+		Str("target", meta.TargetAddr).
+		Uint64("stream_id", uint64(stream.StreamID())).
+		Msg("TCP stream opened, forwarding to target")
+
+	// Forward QUIC stream to TCP target
+	return tcpbridge.QUICToTCP(stream, meta.TargetAddr)
 }
 
 // DefaultUDPHandler is a default handler for UDP streams
