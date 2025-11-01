@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/piwi3910/tunnelor/internal/config"
+	"github.com/piwi3910/tunnelor/internal/control"
 	"github.com/piwi3910/tunnelor/internal/logger"
 	"github.com/piwi3910/tunnelor/internal/quic"
 	"github.com/rs/zerolog/log"
@@ -99,7 +100,7 @@ func runServer(cmd *cobra.Command, args []string) {
 			}
 
 			// Handle connection in goroutine
-			go handleConnection(conn)
+			go handleConnection(conn, cfg.Auth.PSKMap)
 		}
 	}()
 
@@ -111,33 +112,43 @@ func runServer(cmd *cobra.Command, args []string) {
 	log.Info().Msg("Shutting down Tunnelord server...")
 }
 
-func handleConnection(conn *quic.Connection) {
+func handleConnection(conn *quic.Connection, pskMap map[string]string) {
 	log.Info().
 		Str("remote_addr", conn.RemoteAddr()).
 		Str("local_addr", conn.LocalAddr()).
 		Msg("New connection established")
 
-	// TODO: Implement authentication via control stream
-	// TODO: Handle incoming streams
-	// TODO: Set up forwarding
+	// Create control handler
+	controlHandler := control.NewServerHandler(pskMap, conn)
 
-	// For now, just accept and log streams
-	for {
-		stream, err := conn.AcceptStream()
-		if err != nil {
-			log.Error().
-				Err(err).
-				Str("remote_addr", conn.RemoteAddr()).
-				Msg("Failed to accept stream")
-			return
-		}
-
-		log.Debug().
-			Uint64("stream_id", uint64(stream.StreamID())).
+	// Accept first stream (should be control stream)
+	controlStream, err := conn.AcceptStream()
+	if err != nil {
+		log.Error().
+			Err(err).
 			Str("remote_addr", conn.RemoteAddr()).
-			Msg("Stream accepted")
-
-		// TODO: Handle stream based on protocol type
-		stream.Close()
+			Msg("Failed to accept control stream")
+		return
 	}
+
+	// Handle authentication
+	if err := controlHandler.HandleControlStream(controlStream); err != nil {
+		log.Error().
+			Err(err).
+			Str("remote_addr", conn.RemoteAddr()).
+			Msg("Authentication failed")
+		conn.Close()
+		return
+	}
+
+	// TODO: Handle additional streams
+	// TODO: Set up forwarding based on OPEN messages
+
+	log.Info().
+		Str("remote_addr", conn.RemoteAddr()).
+		Int("sessions", controlHandler.SessionCount()).
+		Msg("Connection authenticated, ready for forwarding")
+
+	// Keep connection alive
+	select {}
 }

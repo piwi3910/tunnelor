@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/piwi3910/tunnelor/internal/config"
+	"github.com/piwi3910/tunnelor/internal/control"
 	"github.com/piwi3910/tunnelor/internal/logger"
 	"github.com/piwi3910/tunnelor/internal/quic"
 	"github.com/rs/zerolog/log"
@@ -121,7 +122,18 @@ func runConnect(cmd *cobra.Command, args []string) {
 		Str("local_addr", quicClient.Connection().LocalAddr()).
 		Msg("Connected to server")
 
-	// TODO: Authenticate with PSK via control stream
+	// Create control handler
+	controlHandler := control.NewClientHandler(cfg.ClientID, cfg.PSK, quicClient.Connection())
+
+	// Authenticate with server
+	if err := controlHandler.Authenticate(); err != nil {
+		log.Fatal().Err(err).Msg("Failed to authenticate with server")
+	}
+
+	log.Info().
+		Str("session_id", controlHandler.GetSessionID()).
+		Msg("Authentication successful")
+
 	// TODO: Establish port forwards
 
 	log.Info().Msg("Tunnelorc client ready")

@@ -1,0 +1,143 @@
+package control
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// MessageType represents the type of control message
+type MessageType string
+
+const (
+	// MessageTypeAuth is sent by client to authenticate
+	MessageTypeAuth MessageType = "AUTH"
+
+	// MessageTypeAuthOK is sent by server on successful authentication
+	MessageTypeAuthOK MessageType = "AUTH_OK"
+
+	// MessageTypeAuthFail is sent by server on failed authentication
+	MessageTypeAuthFail MessageType = "AUTH_FAIL"
+
+	// MessageTypeOpen is sent to request opening a new tunnel
+	MessageTypeOpen MessageType = "OPEN"
+
+	// MessageTypeClose is sent to close a stream
+	MessageTypeClose MessageType = "CLOSE"
+
+	// MessageTypeMetrics is sent to share metrics
+	MessageTypeMetrics MessageType = "METRICS"
+
+	// MessageTypePing is sent for keepalive
+	MessageTypePing MessageType = "PING"
+
+	// MessageTypePong is sent in response to ping
+	MessageTypePong MessageType = "PONG"
+)
+
+// Message represents a control plane message
+type Message struct {
+	Type MessageType     `json:"type"`
+	Data json.RawMessage `json:"data,omitempty"`
+}
+
+// AuthMessage is sent by client to authenticate with PSK
+type AuthMessage struct {
+	ClientID string `json:"client_id"`
+	Nonce    string `json:"nonce"`
+	HMAC     string `json:"hmac"`
+}
+
+// AuthOKMessage is sent by server on successful authentication
+type AuthOKMessage struct {
+	SessionID string `json:"session_id"`
+	Message   string `json:"message,omitempty"`
+}
+
+// AuthFailMessage is sent by server on failed authentication
+type AuthFailMessage struct {
+	Reason string `json:"reason"`
+}
+
+// OpenMessage requests opening a new tunnel
+type OpenMessage struct {
+	StreamID   uint64 `json:"stream_id"`
+	Protocol   string `json:"protocol"` // "tcp" or "udp"
+	LocalAddr  string `json:"local_addr"`
+	RemoteAddr string `json:"remote_addr"`
+}
+
+// CloseMessage requests closing a stream
+type CloseMessage struct {
+	StreamID uint64 `json:"stream_id"`
+	Reason   string `json:"reason,omitempty"`
+}
+
+// MetricsMessage contains session metrics
+type MetricsMessage struct {
+	ActiveStreams   int    `json:"active_streams"`
+	BytesSent       uint64 `json:"bytes_sent"`
+	BytesReceived   uint64 `json:"bytes_received"`
+	StreamsOpened   uint64 `json:"streams_opened"`
+	StreamsClosed   uint64 `json:"streams_closed"`
+	UptimeSeconds   int64  `json:"uptime_seconds"`
+}
+
+// PingMessage is sent for keepalive
+type PingMessage struct {
+	Timestamp int64  `json:"timestamp"`
+	Seq       uint64 `json:"seq"`
+}
+
+// PongMessage is sent in response to ping
+type PongMessage struct {
+	Timestamp int64  `json:"timestamp"`
+	Seq       uint64 `json:"seq"`
+}
+
+// NewMessage creates a new control message
+func NewMessage(msgType MessageType, data interface{}) (*Message, error) {
+	var rawData json.RawMessage
+	if data != nil {
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal message data: %w", err)
+		}
+		rawData = jsonData
+	}
+
+	return &Message{
+		Type: msgType,
+		Data: rawData,
+	}, nil
+}
+
+// ParseData parses the message data into the given structure
+func (m *Message) ParseData(v interface{}) error {
+	if m.Data == nil {
+		return fmt.Errorf("message has no data")
+	}
+
+	if err := json.Unmarshal(m.Data, v); err != nil {
+		return fmt.Errorf("failed to unmarshal message data: %w", err)
+	}
+
+	return nil
+}
+
+// Marshal serializes the message to JSON
+func (m *Message) Marshal() ([]byte, error) {
+	data, err := json.Marshal(m)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal message: %w", err)
+	}
+	return data, nil
+}
+
+// UnmarshalMessage deserializes a message from JSON
+func UnmarshalMessage(data []byte) (*Message, error) {
+	var msg Message
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal message: %w", err)
+	}
+	return &msg, nil
+}
