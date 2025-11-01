@@ -9,6 +9,7 @@ import (
 	"github.com/piwi3910/tunnelor/internal/config"
 	"github.com/piwi3910/tunnelor/internal/control"
 	"github.com/piwi3910/tunnelor/internal/logger"
+	"github.com/piwi3910/tunnelor/internal/mux"
 	"github.com/piwi3910/tunnelor/internal/quic"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -141,14 +142,27 @@ func handleConnection(conn *quic.Connection, pskMap map[string]string) {
 		return
 	}
 
-	// TODO: Handle additional streams
-	// TODO: Set up forwarding based on OPEN messages
-
 	log.Info().
 		Str("remote_addr", conn.RemoteAddr()).
 		Int("sessions", controlHandler.SessionCount()).
-		Msg("Connection authenticated, ready for forwarding")
+		Msg("Connection authenticated, setting up multiplexer")
 
-	// Keep connection alive
-	select {}
+	// Create multiplexer for this connection
+	multiplexer := mux.NewMultiplexer(conn)
+	defer multiplexer.Close()
+
+	// Register default handlers
+	mux.RegisterDefaultHandlers(multiplexer)
+
+	log.Info().
+		Str("remote_addr", conn.RemoteAddr()).
+		Msg("Multiplexer ready, serving streams")
+
+	// Serve streams (blocking)
+	if err := multiplexer.ServeStreams(); err != nil {
+		log.Error().
+			Err(err).
+			Str("remote_addr", conn.RemoteAddr()).
+			Msg("Error serving streams")
+	}
 }

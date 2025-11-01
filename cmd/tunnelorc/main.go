@@ -9,6 +9,7 @@ import (
 	"github.com/piwi3910/tunnelor/internal/config"
 	"github.com/piwi3910/tunnelor/internal/control"
 	"github.com/piwi3910/tunnelor/internal/logger"
+	"github.com/piwi3910/tunnelor/internal/mux"
 	"github.com/piwi3910/tunnelor/internal/quic"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -134,7 +135,14 @@ func runConnect(cmd *cobra.Command, args []string) {
 		Str("session_id", controlHandler.GetSessionID()).
 		Msg("Authentication successful")
 
-	// TODO: Establish port forwards
+	// Create multiplexer for opening streams
+	multiplexer := mux.NewMultiplexer(quicClient.Connection())
+	defer multiplexer.Close()
+
+	// Register default handlers (for responses from server)
+	mux.RegisterDefaultHandlers(multiplexer)
+
+	// TODO: Establish port forwards using multiplexer.OpenStream()
 
 	log.Info().Msg("Tunnelorc client ready")
 

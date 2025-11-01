@@ -1,0 +1,238 @@
+package mux
+
+import (
+	"context"
+	"fmt"
+	"sync"
+
+	quicgo "github.com/quic-go/quic-go"
+	"github.com/piwi3910/tunnelor/internal/quic"
+	"github.com/rs/zerolog/log"
+)
+
+// StreamHandler is a function that handles a multiplexed stream
+type StreamHandler func(ctx context.Context, stream *quicgo.Stream, header *StreamHeader) error
+
+// Multiplexer manages stream multiplexing and dispatching
+type Multiplexer struct {
+	connection *quic.Connection
+	handlers   map[ProtocolID]StreamHandler
+	streams    map[uint64]*MuxStream
+	mu         sync.RWMutex
+	ctx        context.Context
+	cancel     context.CancelFunc
+}
+
+// MuxStream represents a multiplexed stream with its header
+type MuxStream struct {
+	Stream   *quicgo.Stream
+	Header   *StreamHeader
+	StreamID uint64
+}
+
+// NewMultiplexer creates a new multiplexer for a connection
+func NewMultiplexer(conn *quic.Connection) *Multiplexer {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	return &Multiplexer{
+		connection: conn,
+		handlers:   make(map[ProtocolID]StreamHandler),
+		streams:    make(map[uint64]*MuxStream),
+		ctx:        ctx,
+		cancel:     cancel,
+	}
+}
+
+// RegisterHandler registers a handler for a protocol type
+func (m *Multiplexer) RegisterHandler(protocol ProtocolID, handler StreamHandler) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.handlers[protocol] = handler
+
+	log.Debug().
+		Str("protocol", protocol.String()).
+		Msg("Registered stream handler")
+}
+
+// OpenStream opens a new multiplexed stream with the given protocol
+func (m *Multiplexer) OpenStream(protocol ProtocolID, metadata []byte) (*MuxStream, error) {
+	// Open QUIC stream
+	stream, err := m.connection.OpenStream()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open stream: %w", err)
+	}
+
+	// Create stream header
+	header, err := NewStreamHeader(protocol, metadata)
+	if err != nil {
+		stream.Close()
+		return nil, fmt.Errorf("failed to create stream header: %w", err)
+	}
+
+	// Write header to stream
+	if err := WriteHeader(stream, header); err != nil {
+		stream.Close()
+		return nil, fmt.Errorf("failed to write stream header: %w", err)
+	}
+
+	// Create mux stream
+	muxStream := &MuxStream{
+		Stream:   stream,
+		Header:   header,
+		StreamID: uint64(stream.StreamID()),
+	}
+
+	// Register stream
+	m.mu.Lock()
+	m.streams[muxStream.StreamID] = muxStream
+	m.mu.Unlock()
+
+	log.Debug().
+		Uint64("stream_id", muxStream.StreamID).
+		Str("protocol", protocol.String()).
+		Msg("Opened multiplexed stream")
+
+	return muxStream, nil
+}
+
+// AcceptStream accepts an incoming multiplexed stream
+func (m *Multiplexer) AcceptStream() (*MuxStream, error) {
+	// Accept QUIC stream
+	stream, err := m.connection.AcceptStream()
+	if err != nil {
+		return nil, fmt.Errorf("failed to accept stream: %w", err)
+	}
+
+	// Read stream header
+	header, err := ReadHeader(stream)
+	if err != nil {
+		stream.Close()
+		return nil, fmt.Errorf("failed to read stream header: %w", err)
+	}
+
+	// Create mux stream
+	muxStream := &MuxStream{
+		Stream:   stream,
+		Header:   header,
+		StreamID: uint64(stream.StreamID()),
+	}
+
+	// Register stream
+	m.mu.Lock()
+	m.streams[muxStream.StreamID] = muxStream
+	m.mu.Unlock()
+
+	log.Debug().
+		Uint64("stream_id", muxStream.StreamID).
+		Str("protocol", header.Protocol.String()).
+		Msg("Accepted multiplexed stream")
+
+	return muxStream, nil
+}
+
+// HandleStream dispatches a stream to the appropriate handler
+func (m *Multiplexer) HandleStream(muxStream *MuxStream) error {
+	m.mu.RLock()
+	handler, ok := m.handlers[muxStream.Header.Protocol]
+	m.mu.RUnlock()
+
+	if !ok {
+		return fmt.Errorf("no handler registered for protocol: %s", muxStream.Header.Protocol.String())
+	}
+
+	// Call handler
+	if err := handler(m.ctx, muxStream.Stream, muxStream.Header); err != nil {
+		return fmt.Errorf("handler failed for protocol %s: %w", muxStream.Header.Protocol.String(), err)
+	}
+
+	return nil
+}
+
+// ServeStreams accepts and handles incoming streams
+func (m *Multiplexer) ServeStreams() error {
+	for {
+		// Accept stream
+		muxStream, err := m.AcceptStream()
+		if err != nil {
+			// Check if context was cancelled
+			select {
+			case <-m.ctx.Done():
+				return nil
+			default:
+				log.Error().Err(err).Msg("Failed to accept stream")
+				continue
+			}
+		}
+
+		// Handle stream in goroutine
+		go func(ms *MuxStream) {
+			defer m.CloseStream(ms.StreamID)
+
+			if err := m.HandleStream(ms); err != nil {
+				log.Error().
+					Err(err).
+					Uint64("stream_id", ms.StreamID).
+					Str("protocol", ms.Header.Protocol.String()).
+					Msg("Failed to handle stream")
+			}
+		}(muxStream)
+	}
+}
+
+// GetStream returns a stream by ID
+func (m *Multiplexer) GetStream(streamID uint64) (*MuxStream, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	stream, ok := m.streams[streamID]
+	return stream, ok
+}
+
+// CloseStream closes and removes a stream
+func (m *Multiplexer) CloseStream(streamID uint64) error {
+	m.mu.Lock()
+	muxStream, ok := m.streams[streamID]
+	if ok {
+		delete(m.streams, streamID)
+	}
+	m.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("stream %d not found", streamID)
+	}
+
+	if err := muxStream.Stream.Close(); err != nil {
+		return fmt.Errorf("failed to close stream: %w", err)
+	}
+
+	log.Debug().
+		Uint64("stream_id", streamID).
+		Msg("Closed multiplexed stream")
+
+	return nil
+}
+
+// StreamCount returns the number of active streams
+func (m *Multiplexer) StreamCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.streams)
+}
+
+// Close closes the multiplexer and all streams
+func (m *Multiplexer) Close() error {
+	m.cancel()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Close all streams
+	for streamID, muxStream := range m.streams {
+		muxStream.Stream.Close()
+		delete(m.streams, streamID)
+	}
+
+	log.Info().Msg("Multiplexer closed")
+	return nil
+}
