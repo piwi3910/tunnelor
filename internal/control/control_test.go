@@ -475,3 +475,186 @@ func TestMultipleMessagesBuffered(t *testing.T) {
 		}
 	}
 }
+
+// TestNewClientHandler tests the ClientHandler constructor
+func TestNewClientHandler(t *testing.T) {
+	clientID := "test-client"
+	psk := "test-psk"
+
+	handler := NewClientHandler(clientID, psk, nil)
+
+	if handler == nil {
+		t.Fatal("NewClientHandler() returned nil")
+	}
+	if handler.clientID != clientID {
+		t.Errorf("clientID = %v, want %v", handler.clientID, clientID)
+	}
+	if handler.psk != psk {
+		t.Errorf("psk = %v, want %v", handler.psk, psk)
+	}
+	if handler.sessionID != "" {
+		t.Errorf("sessionID should be empty, got %v", handler.sessionID)
+	}
+}
+
+// TestClientHandlerGetSessionID tests GetSessionID method
+func TestClientHandlerGetSessionID(t *testing.T) {
+	handler := NewClientHandler("test", "psk", nil)
+
+	// Initially should be empty
+	if sid := handler.GetSessionID(); sid != "" {
+		t.Errorf("GetSessionID() = %v, want empty string", sid)
+	}
+
+	// Set session ID directly for testing
+	handler.sessionID = "test-session-123"
+	if sid := handler.GetSessionID(); sid != "test-session-123" {
+		t.Errorf("GetSessionID() = %v, want test-session-123", sid)
+	}
+}
+
+// TestClientHandlerIsAuthenticated tests IsAuthenticated method
+func TestClientHandlerIsAuthenticated(t *testing.T) {
+	handler := NewClientHandler("test", "psk", nil)
+
+	// Initially should be false
+	if handler.IsAuthenticated() {
+		t.Error("IsAuthenticated() = true, want false")
+	}
+
+	// Set session ID to simulate authentication
+	handler.sessionID = "test-session-123"
+	if !handler.IsAuthenticated() {
+		t.Error("IsAuthenticated() = false, want true after setting sessionID")
+	}
+}
+
+// TestNewServerHandler tests the ServerHandler constructor
+func TestNewServerHandler(t *testing.T) {
+	pskMap := map[string]string{
+		"client1": "psk1",
+		"client2": "psk2",
+	}
+
+	handler := NewServerHandler(pskMap, nil)
+
+	if handler == nil {
+		t.Fatal("NewServerHandler() returned nil")
+	}
+	if len(handler.pskMap) != 2 {
+		t.Errorf("pskMap length = %v, want 2", len(handler.pskMap))
+	}
+	if handler.sessions == nil {
+		t.Error("sessions map should be initialized")
+	}
+	if len(handler.sessions) != 0 {
+		t.Errorf("sessions should be empty initially, got %v", len(handler.sessions))
+	}
+}
+
+// TestServerHandlerSessionManagement tests session management methods
+func TestServerHandlerSessionManagement(t *testing.T) {
+	handler := NewServerHandler(map[string]string{"client1": "psk1"}, nil)
+
+	// Initially should have no sessions
+	if count := handler.SessionCount(); count != 0 {
+		t.Errorf("SessionCount() = %v, want 0", count)
+	}
+
+	// Add a session manually for testing
+	session := &Session{
+		SessionID:  "session-123",
+		ClientID:   "client1",
+		RemoteAddr: "127.0.0.1:12345",
+	}
+	handler.sessions["session-123"] = session
+
+	// Test SessionCount
+	if count := handler.SessionCount(); count != 1 {
+		t.Errorf("SessionCount() = %v, want 1", count)
+	}
+
+	// Test GetSession
+	retrieved, ok := handler.GetSession("session-123")
+	if !ok {
+		t.Error("GetSession() should return true for existing session")
+	}
+	if retrieved.SessionID != "session-123" {
+		t.Errorf("GetSession() SessionID = %v, want session-123", retrieved.SessionID)
+	}
+
+	// Test GetSession for non-existent session
+	_, ok = handler.GetSession("nonexistent")
+	if ok {
+		t.Error("GetSession() should return false for non-existent session")
+	}
+
+	// Test RemoveSession
+	handler.RemoveSession("session-123")
+	if count := handler.SessionCount(); count != 0 {
+		t.Errorf("SessionCount() after removal = %v, want 0", count)
+	}
+
+	// Verify session is actually removed
+	_, ok = handler.GetSession("session-123")
+	if ok {
+		t.Error("GetSession() should return false after RemoveSession()")
+	}
+}
+
+// TestServerHandlerMultipleSessions tests managing multiple sessions
+func TestServerHandlerMultipleSessions(t *testing.T) {
+	handler := NewServerHandler(map[string]string{
+		"client1": "psk1",
+		"client2": "psk2",
+	}, nil)
+
+	// Add multiple sessions
+	sessions := []*Session{
+		{SessionID: "session-1", ClientID: "client1", RemoteAddr: "127.0.0.1:1001"},
+		{SessionID: "session-2", ClientID: "client1", RemoteAddr: "127.0.0.1:1002"},
+		{SessionID: "session-3", ClientID: "client2", RemoteAddr: "127.0.0.1:1003"},
+	}
+
+	for _, s := range sessions {
+		handler.sessions[s.SessionID] = s
+	}
+
+	// Verify count
+	if count := handler.SessionCount(); count != 3 {
+		t.Errorf("SessionCount() = %v, want 3", count)
+	}
+
+	// Verify each session can be retrieved
+	for _, s := range sessions {
+		retrieved, ok := handler.GetSession(s.SessionID)
+		if !ok {
+			t.Errorf("GetSession(%s) should exist", s.SessionID)
+		}
+		if retrieved.ClientID != s.ClientID {
+			t.Errorf("GetSession(%s).ClientID = %v, want %v", s.SessionID, retrieved.ClientID, s.ClientID)
+		}
+	}
+
+	// Remove one session
+	handler.RemoveSession("session-2")
+	if count := handler.SessionCount(); count != 2 {
+		t.Errorf("SessionCount() after one removal = %v, want 2", count)
+	}
+
+	// Verify removed session is gone
+	_, ok := handler.GetSession("session-2")
+	if ok {
+		t.Error("Removed session should not be retrievable")
+	}
+
+	// Other sessions should still exist
+	_, ok = handler.GetSession("session-1")
+	if !ok {
+		t.Error("session-1 should still exist")
+	}
+	_, ok = handler.GetSession("session-3")
+	if !ok {
+		t.Error("session-3 should still exist")
+	}
+}
