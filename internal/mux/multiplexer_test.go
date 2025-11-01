@@ -166,12 +166,12 @@ func TestClose(t *testing.T) {
 		t.Errorf("Close() returned error: %v", err)
 	}
 
-	// Verify context was cancelled
+	// Verify context was canceled
 	select {
 	case <-mux.ctx.Done():
-		// Expected - context should be cancelled
+		// Expected - context should be canceled
 	default:
-		t.Error("Context should be cancelled after Close()")
+		t.Error("Context should be canceled after Close()")
 	}
 
 	// Verify streams were cleared

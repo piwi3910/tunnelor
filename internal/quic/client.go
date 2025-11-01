@@ -160,7 +160,7 @@ func (c *Client) Reconnect() error {
 		select {
 		case <-time.After(backoff):
 		case <-c.ctx.Done():
-			return fmt.Errorf("reconnection cancelled: %w", c.ctx.Err())
+			return fmt.Errorf("reconnection canceled: %w", c.ctx.Err())
 		}
 
 		// Increase backoff exponentially

@@ -156,7 +156,7 @@ func (m *Multiplexer) ServeStreams() error {
 		// Accept stream
 		muxStream, err := m.AcceptStream()
 		if err != nil {
-			// Check if context was cancelled
+			// Check if context was canceled
 			select {
 			case <-m.ctx.Done():
 				return nil

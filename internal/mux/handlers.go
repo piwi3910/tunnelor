@@ -99,7 +99,7 @@ func echoStream(ctx context.Context, stream *quicgo.Stream) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("context cancelled: %w", ctx.Err())
+			return fmt.Errorf("context canceled: %w", ctx.Err())
 		default:
 		}
 
