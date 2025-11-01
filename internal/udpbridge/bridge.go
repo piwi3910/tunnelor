@@ -3,6 +3,7 @@ package udpbridge
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -63,7 +64,7 @@ type UDPSession struct {
 }
 
 // UDPToQUIC bridges UDP datagrams to a QUIC stream
-func UDPToQUIC(udpConn *net.UDPConn, quicStream *quicgo.Stream, ctx context.Context) error {
+func UDPToQUIC(ctx context.Context, udpConn *net.UDPConn, quicStream *quicgo.Stream) error {
 	defer (*quicStream).Close()
 
 	log.Debug().
@@ -83,7 +84,7 @@ func UDPToQUIC(udpConn *net.UDPConn, quicStream *quicgo.Stream, ctx context.Cont
 		// Read UDP datagram
 		n, _, err := udpConn.ReadFromUDP(buffer)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return fmt.Errorf("failed to read UDP datagram: %w", err)
@@ -108,7 +109,7 @@ func UDPToQUIC(udpConn *net.UDPConn, quicStream *quicgo.Stream, ctx context.Cont
 }
 
 // QUICToUDP bridges a QUIC stream to UDP datagrams
-func QUICToUDP(quicStream *quicgo.Stream, targetAddr string, ctx context.Context) error {
+func QUICToUDP(ctx context.Context, quicStream *quicgo.Stream, targetAddr string) error {
 	defer (*quicStream).Close()
 
 	log.Debug().
@@ -145,7 +146,7 @@ func QUICToUDP(quicStream *quicgo.Stream, targetAddr string, ctx context.Context
 		// Read datagram from QUIC stream
 		datagram, err := ReadUDPDatagram(quicStream)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return fmt.Errorf("failed to read datagram from QUIC stream: %w", err)
@@ -263,7 +264,7 @@ func (l *UDPListener) handleDatagram(data []byte, remoteAddr *net.UDPAddr) {
 			Msg("New UDP session created")
 
 		// Start session handler in background
-		go l.handleSession(session, ctx)
+		go l.handleSession(ctx, session)
 	} else {
 		// Update last seen
 		session.LastSeen = time.Now()
@@ -299,7 +300,7 @@ func (l *UDPListener) handleDatagram(data []byte, remoteAddr *net.UDPAddr) {
 }
 
 // handleSession handles a UDP session
-func (l *UDPListener) handleSession(session *UDPSession, ctx context.Context) {
+func (l *UDPListener) handleSession(ctx context.Context, session *UDPSession) {
 	<-ctx.Done()
 
 	// Session ended, clean up

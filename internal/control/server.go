@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/piwi3910/tunnelor/internal/quic"
 	quicgo "github.com/quic-go/quic-go"
 	"github.com/rs/zerolog/log"
+
+	"github.com/piwi3910/tunnelor/internal/quic"
 )
 
 // ServerHandler handles control plane operations on the server side

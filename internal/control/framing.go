@@ -3,6 +3,7 @@ package control
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 
@@ -45,7 +46,7 @@ func ReadMessage(stream *quicgo.Stream) (*Message, error) {
 	// Read length prefix (4 bytes, big-endian)
 	var length uint32
 	if err := binary.Read(stream, binary.BigEndian, &length); err != nil {
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil, io.EOF
 		}
 		return nil, fmt.Errorf("failed to read message length: %w", err)
@@ -108,7 +109,7 @@ func ReadMessageBuffered(reader *bufio.Reader) (*Message, error) {
 	// Read length prefix (4 bytes, big-endian)
 	var length uint32
 	if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil, io.EOF
 		}
 		return nil, fmt.Errorf("failed to read message length: %w", err)

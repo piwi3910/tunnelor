@@ -2,13 +2,15 @@ package mux
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
-	"github.com/piwi3910/tunnelor/internal/tcpbridge"
-	"github.com/piwi3910/tunnelor/internal/udpbridge"
 	quicgo "github.com/quic-go/quic-go"
 	"github.com/rs/zerolog/log"
+
+	"github.com/piwi3910/tunnelor/internal/tcpbridge"
+	"github.com/piwi3910/tunnelor/internal/udpbridge"
 )
 
 // DefaultControlHandler is a default handler for control streams
@@ -71,7 +73,7 @@ func DefaultUDPHandler(ctx context.Context, stream *quicgo.Stream, header *Strea
 		Msg("UDP stream opened, forwarding to target")
 
 	// Forward QUIC stream to UDP target
-	return udpbridge.QUICToUDP(stream, meta.TargetAddr, ctx)
+	return udpbridge.QUICToUDP(ctx, stream, meta.TargetAddr)
 }
 
 // DefaultRawHandler is a default handler for raw streams
@@ -97,7 +99,7 @@ func echoStream(ctx context.Context, stream *quicgo.Stream) error {
 
 		n, err := stream.Read(buf)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return fmt.Errorf("failed to read from stream: %w", err)

@@ -6,6 +6,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	quicgo "github.com/quic-go/quic-go"
+	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
+
 	"github.com/piwi3910/tunnelor/internal/config"
 	"github.com/piwi3910/tunnelor/internal/control"
 	"github.com/piwi3910/tunnelor/internal/logger"
@@ -13,9 +17,6 @@ import (
 	"github.com/piwi3910/tunnelor/internal/quic"
 	"github.com/piwi3910/tunnelor/internal/tcpbridge"
 	"github.com/piwi3910/tunnelor/internal/udpbridge"
-	quicgo "github.com/quic-go/quic-go"
-	"github.com/rs/zerolog/log"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -59,14 +60,20 @@ func init() {
 
 	// Connect command flags
 	connectCmd.Flags().StringVar(&cfgFile, "config", "", "config file path (required)")
-	connectCmd.MarkFlagRequired("config")
+	if err := connectCmd.MarkFlagRequired("config"); err != nil {
+		panic(err) // This should never fail for a valid flag name
+	}
 
 	// Forward command flags
 	forwardCmd.Flags().StringVar(&fwdLocal, "local", "", "local address (e.g., 127.0.0.1:8080)")
 	forwardCmd.Flags().StringVar(&fwdRemote, "remote", "", "remote address (e.g., 10.0.0.5:9000)")
 	forwardCmd.Flags().StringVar(&fwdProto, "proto", "tcp", "protocol (tcp or udp)")
-	forwardCmd.MarkFlagRequired("local")
-	forwardCmd.MarkFlagRequired("remote")
+	if err := forwardCmd.MarkFlagRequired("local"); err != nil {
+		panic(err)
+	}
+	if err := forwardCmd.MarkFlagRequired("remote"); err != nil {
+		panic(err)
+	}
 
 	rootCmd.AddCommand(connectCmd)
 	rootCmd.AddCommand(forwardCmd)
@@ -118,6 +125,7 @@ func runConnect(cmd *cobra.Command, args []string) {
 
 	// Connect to QUIC server
 	if err := quicClient.Connect(); err != nil {
+		quicClient.Close()
 		log.Fatal().Err(err).Msg("Failed to connect to QUIC server")
 	}
 
@@ -131,6 +139,7 @@ func runConnect(cmd *cobra.Command, args []string) {
 
 	// Authenticate with server
 	if err := controlHandler.Authenticate(); err != nil {
+		quicClient.Close()
 		log.Fatal().Err(err).Msg("Failed to authenticate with server")
 	}
 
@@ -160,13 +169,13 @@ func runConnect(cmd *cobra.Command, args []string) {
 					TargetAddr: targetAddr,
 				})
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("failed to encode TCP metadata: %w", err)
 				}
 
 				// Open multiplexed stream
 				muxStream, err := multiplexer.OpenStream(mux.ProtocolTCP, metadata)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("failed to open TCP stream: %w", err)
 				}
 
 				return muxStream.Stream, nil
@@ -175,6 +184,8 @@ func runConnect(cmd *cobra.Command, args []string) {
 			// Create TCP listener
 			listener := tcpbridge.NewTCPListener(fwd.Local, fwd.Remote, streamOpener)
 			if err := listener.Start(); err != nil {
+				multiplexer.Close()
+				quicClient.Close()
 				log.Fatal().Err(err).Str("local", fwd.Local).Msg("Failed to start TCP listener")
 			}
 			tcpListeners = append(tcpListeners, listener)
@@ -190,7 +201,6 @@ func runConnect(cmd *cobra.Command, args []string) {
 				Str("local", fwd.Local).
 				Str("remote", fwd.Remote).
 				Msg("TCP forward established")
-
 		} else if fwd.Proto == "udp" {
 			// Create stream opener function for this forward
 			targetAddr := fwd.Remote
@@ -201,13 +211,13 @@ func runConnect(cmd *cobra.Command, args []string) {
 					TargetAddr: targetAddr,
 				})
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("failed to encode UDP metadata: %w", err)
 				}
 
 				// Open multiplexed stream
 				muxStream, err := multiplexer.OpenStream(mux.ProtocolUDP, metadata)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("failed to open UDP stream: %w", err)
 				}
 
 				return muxStream.Stream, nil
@@ -216,6 +226,8 @@ func runConnect(cmd *cobra.Command, args []string) {
 			// Create UDP listener
 			listener := udpbridge.NewUDPListener(fwd.Local, fwd.Remote, streamOpener)
 			if err := listener.Start(); err != nil {
+				multiplexer.Close()
+				quicClient.Close()
 				log.Fatal().Err(err).Str("local", fwd.Local).Msg("Failed to start UDP listener")
 			}
 			udpListeners = append(udpListeners, listener)
@@ -254,7 +266,7 @@ func runConnect(cmd *cobra.Command, args []string) {
 	log.Info().Msg("Shutting down Tunnelorc client...")
 }
 
-func runForward(cmd *cobra.Command, args []string) {
+func runForward(_ *cobra.Command, _ []string) {
 	// Setup logging
 	logLevel := logger.InfoLevel
 	if verbose {

@@ -2,6 +2,7 @@ package tcpbridge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -25,7 +26,7 @@ func BidirectionalCopy(conn1 io.ReadWriteCloser, conn2 io.ReadWriteCloser) error
 	go func() {
 		defer wg.Done()
 		_, err := io.Copy(conn2, conn1)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			errChan <- fmt.Errorf("copy conn1->conn2 failed: %w", err)
 		}
 		// Close write side to signal EOF
@@ -38,7 +39,7 @@ func BidirectionalCopy(conn1 io.ReadWriteCloser, conn2 io.ReadWriteCloser) error
 	go func() {
 		defer wg.Done()
 		_, err := io.Copy(conn1, conn2)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			errChan <- fmt.Errorf("copy conn2->conn1 failed: %w", err)
 		}
 		// Close write side to signal EOF

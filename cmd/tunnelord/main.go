@@ -34,7 +34,9 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path (required)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose/debug logging")
 	rootCmd.PersistentFlags().BoolVar(&pretty, "pretty", false, "enable pretty console logging")
-	rootCmd.MarkPersistentFlagRequired("config")
+	if err := rootCmd.MarkPersistentFlagRequired("config"); err != nil {
+		panic(err) // This should never fail for a valid flag name
+	}
 }
 
 func main() {
@@ -44,7 +46,7 @@ func main() {
 	}
 }
 
-func runServer(cmd *cobra.Command, args []string) {
+func runServer(_ *cobra.Command, _ []string) {
 	// Setup logging
 	logLevel := logger.InfoLevel
 	if verbose {
