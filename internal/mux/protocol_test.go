@@ -85,8 +85,8 @@ func TestNewStreamHeader(t *testing.T) {
 
 func TestWriteReadHeader(t *testing.T) {
 	tests := []struct {
-		name     string
-		header   *StreamHeader
+		name   string
+		header *StreamHeader
 	}{
 		{
 			name: "header with metadata",
@@ -174,7 +174,7 @@ func TestHeaderSize(t *testing.T) {
 		expectedSize int
 	}{
 		{"no metadata", nil, 4},
-		{"with metadata", []byte("test"), 8}, // 4 + 4 bytes metadata
+		{"with metadata", []byte("test"), 8},        // 4 + 4 bytes metadata
 		{"larger metadata", make([]byte, 100), 104}, // 4 + 100 bytes metadata
 	}
 

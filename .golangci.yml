@@ -1,0 +1,150 @@
+run:
+  timeout: 5m
+  tests: true
+  build-tags:
+    - integration
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    enable-all: true
+    disable:
+      - shadow
+
+  gocyclo:
+    min-complexity: 15
+
+  dupl:
+    threshold: 100
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  misspell:
+    locale: US
+
+  lll:
+    line-length: 140
+
+  goimports:
+    local-prefixes: github.com/piwi3910/tunnelor
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+
+  funlen:
+    lines: 100
+    statements: 50
+
+  nestif:
+    min-complexity: 4
+
+  cyclop:
+    max-complexity: 15
+
+  revive:
+    confidence: 0.8
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: redefines-builtin-id
+
+linters:
+  disable-all: true
+  enable:
+    # Default linters
+    - errcheck      # Check for unchecked errors
+    - gosimple      # Simplify code
+    - govet         # Vet examines Go source code
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Advanced static analysis
+    - typecheck     # Type checking
+    - unused        # Detect unused code
+
+    # Additional recommended linters
+    - bodyclose     # Check HTTP response body is closed
+    - dupl          # Detect code cloning
+    - gocyclo       # Cyclomatic complexity
+    - gofmt         # Gofmt checks formatting
+    - goimports     # Check import statements
+    - gosec         # Security problems
+    - misspell      # Spelling mistakes
+    - revive        # Drop-in replacement for golint
+    - unconvert     # Unnecessary type conversions
+    - unparam       # Unused function parameters
+    - whitespace    # Detect leading/trailing whitespace
+
+    # Style linters
+    - goconst       # Repeated strings that could be constants
+    - gocritic      # Opinionated linter
+    - nolintlint    # Ill-formed nolint directives
+
+    # Error handling
+    - errorlint     # Error wrapping issues
+    - wrapcheck     # Check error wrapping
+
+    # Performance
+    - prealloc      # Preallocate slices
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - funlen
+        - goconst
+
+    # Exclude known issues in generated or vendor code
+    - path: vendor/
+      linters:
+        - all
+
+    # Ignore long lines in examples and tests
+    - path: _test\.go
+      linters:
+        - lll
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+  sort-results: true

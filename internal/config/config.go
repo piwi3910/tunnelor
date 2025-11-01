@@ -8,11 +8,11 @@ import (
 
 // ServerConfig holds server-specific configuration
 type ServerConfig struct {
-	Listen      string            `mapstructure:"listen"`
-	TLSCert     string            `mapstructure:"tls_cert"`
-	TLSKey      string            `mapstructure:"tls_key"`
-	MetricsPort int               `mapstructure:"metrics_port"`
-	Auth        ServerAuthConfig  `mapstructure:"auth"`
+	Listen      string           `mapstructure:"listen"`
+	TLSCert     string           `mapstructure:"tls_cert"`
+	TLSKey      string           `mapstructure:"tls_key"`
+	MetricsPort int              `mapstructure:"metrics_port"`
+	Auth        ServerAuthConfig `mapstructure:"auth"`
 }
 
 // ServerAuthConfig holds server authentication configuration

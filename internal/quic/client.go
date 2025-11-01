@@ -61,16 +61,16 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 
 	// Create QUIC configuration
 	quicConfig := &quic.Config{
-		MaxIncomingStreams:                    1000,
-		MaxIncomingUniStreams:                 1000,
-		MaxIdleTimeout:                        0, // No timeout, keepalive on control stream
-		KeepAlivePeriod:                       0,
-		InitialStreamReceiveWindow:            6 * 1024 * 1024,  // 6 MB
-		MaxStreamReceiveWindow:                15 * 1024 * 1024, // 15 MB
-		InitialConnectionReceiveWindow:        15 * 1024 * 1024, // 15 MB
-		MaxConnectionReceiveWindow:            30 * 1024 * 1024, // 30 MB
-		Allow0RTT:                             false,
-		EnableDatagrams:                       true,
+		MaxIncomingStreams:             1000,
+		MaxIncomingUniStreams:          1000,
+		MaxIdleTimeout:                 0, // No timeout, keepalive on control stream
+		KeepAlivePeriod:                0,
+		InitialStreamReceiveWindow:     6 * 1024 * 1024,  // 6 MB
+		MaxStreamReceiveWindow:         15 * 1024 * 1024, // 15 MB
+		InitialConnectionReceiveWindow: 15 * 1024 * 1024, // 15 MB
+		MaxConnectionReceiveWindow:     30 * 1024 * 1024, // 30 MB
+		Allow0RTT:                      false,
+		EnableDatagrams:                true,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -6,7 +6,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	quicgo "github.com/quic-go/quic-go"
 	"github.com/piwi3910/tunnelor/internal/config"
 	"github.com/piwi3910/tunnelor/internal/control"
 	"github.com/piwi3910/tunnelor/internal/logger"
@@ -14,6 +13,7 @@ import (
 	"github.com/piwi3910/tunnelor/internal/quic"
 	"github.com/piwi3910/tunnelor/internal/tcpbridge"
 	"github.com/piwi3910/tunnelor/internal/udpbridge"
+	quicgo "github.com/quic-go/quic-go"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )

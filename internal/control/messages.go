@@ -74,12 +74,12 @@ type CloseMessage struct {
 
 // MetricsMessage contains session metrics
 type MetricsMessage struct {
-	ActiveStreams   int    `json:"active_streams"`
-	BytesSent       uint64 `json:"bytes_sent"`
-	BytesReceived   uint64 `json:"bytes_received"`
-	StreamsOpened   uint64 `json:"streams_opened"`
-	StreamsClosed   uint64 `json:"streams_closed"`
-	UptimeSeconds   int64  `json:"uptime_seconds"`
+	ActiveStreams int    `json:"active_streams"`
+	BytesSent     uint64 `json:"bytes_sent"`
+	BytesReceived uint64 `json:"bytes_received"`
+	StreamsOpened uint64 `json:"streams_opened"`
+	StreamsClosed uint64 `json:"streams_closed"`
+	UptimeSeconds int64  `json:"uptime_seconds"`
 }
 
 // PingMessage is sent for keepalive

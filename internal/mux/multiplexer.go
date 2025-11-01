@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	quicgo "github.com/quic-go/quic-go"
 	"github.com/piwi3910/tunnelor/internal/quic"
+	quicgo "github.com/quic-go/quic-go"
 	"github.com/rs/zerolog/log"
 )
 

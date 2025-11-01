@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	quicgo "github.com/quic-go/quic-go"
 	"github.com/piwi3910/tunnelor/internal/tcpbridge"
 	"github.com/piwi3910/tunnelor/internal/udpbridge"
+	quicgo "github.com/quic-go/quic-go"
 	"github.com/rs/zerolog/log"
 )
 

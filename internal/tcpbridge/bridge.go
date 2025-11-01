@@ -130,12 +130,12 @@ func (sw *StreamWrapper) CloseWrite() error {
 
 // TCPListener listens for TCP connections and forwards them over QUIC
 type TCPListener struct {
-	listenAddr string
-	targetAddr string
-	listener   net.Listener
+	listenAddr   string
+	targetAddr   string
+	listener     net.Listener
 	streamOpener func() (*quicgo.Stream, error)
-	ctx        context.Context
-	cancel     context.CancelFunc
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 // NewTCPListener creates a new TCP listener for forwarding
