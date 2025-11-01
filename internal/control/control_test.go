@@ -1,0 +1,477 @@
+package control
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"testing"
+)
+
+// Test auth.go functions
+
+func TestGenerateNonce(t *testing.T) {
+	nonce1, err := GenerateNonce()
+	if err != nil {
+		t.Fatalf("GenerateNonce() error = %v", err)
+	}
+
+	if len(nonce1) != 32 { // 16 bytes = 32 hex chars
+		t.Errorf("GenerateNonce() length = %d, want 32", len(nonce1))
+	}
+
+	// Generate another and ensure they're different
+	nonce2, err := GenerateNonce()
+	if err != nil {
+		t.Fatalf("GenerateNonce() error = %v", err)
+	}
+
+	if nonce1 == nonce2 {
+		t.Error("GenerateNonce() generated same nonce twice")
+	}
+}
+
+func TestComputeHMAC(t *testing.T) {
+	// Create a base64-encoded test key
+	key := base64.StdEncoding.EncodeToString([]byte("test-secret-key"))
+	message := "test message"
+
+	hmac1, err := ComputeHMAC(key, message)
+	if err != nil {
+		t.Fatalf("ComputeHMAC() error = %v", err)
+	}
+
+	if len(hmac1) == 0 {
+		t.Error("ComputeHMAC() returned empty string")
+	}
+
+	// Computing same HMAC should give same result
+	hmac2, err := ComputeHMAC(key, message)
+	if err != nil {
+		t.Fatalf("ComputeHMAC() error = %v", err)
+	}
+
+	if hmac1 != hmac2 {
+		t.Error("ComputeHMAC() not deterministic")
+	}
+
+	// Different message should give different HMAC
+	hmac3, err := ComputeHMAC(key, "different message")
+	if err != nil {
+		t.Fatalf("ComputeHMAC() error = %v", err)
+	}
+
+	if hmac1 == hmac3 {
+		t.Error("ComputeHMAC() same for different messages")
+	}
+}
+
+func TestComputeHMACInvalidKey(t *testing.T) {
+	_, err := ComputeHMAC("invalid-base64!!!", "message")
+	if err == nil {
+		t.Error("ComputeHMAC() expected error for invalid base64 key")
+	}
+}
+
+func TestVerifyHMAC(t *testing.T) {
+	key := base64.StdEncoding.EncodeToString([]byte("test-secret-key"))
+	message := "test message"
+
+	hmac, err := ComputeHMAC(key, message)
+	if err != nil {
+		t.Fatalf("ComputeHMAC() error = %v", err)
+	}
+
+	// Verify should succeed with correct HMAC
+	valid, err := VerifyHMAC(key, message, hmac)
+	if err != nil {
+		t.Fatalf("VerifyHMAC() error = %v", err)
+	}
+	if !valid {
+		t.Error("VerifyHMAC() = false, want true")
+	}
+
+	// Verify should fail with incorrect HMAC
+	valid, err = VerifyHMAC(key, message, "wrong-hmac")
+	if err != nil {
+		t.Fatalf("VerifyHMAC() error = %v", err)
+	}
+	if valid {
+		t.Error("VerifyHMAC() = true for wrong HMAC, want false")
+	}
+
+	// Verify should fail with different message
+	valid, err = VerifyHMAC(key, "different message", hmac)
+	if err != nil {
+		t.Fatalf("VerifyHMAC() error = %v", err)
+	}
+	if valid {
+		t.Error("VerifyHMAC() = true for different message, want false")
+	}
+}
+
+func TestCreateAuthPayload(t *testing.T) {
+	clientID := "test-client"
+	nonce := "abc123"
+
+	payload := CreateAuthPayload(clientID, nonce)
+	expected := "test-client|abc123"
+
+	if payload != expected {
+		t.Errorf("CreateAuthPayload() = %v, want %v", payload, expected)
+	}
+}
+
+func TestComputeAuthHMAC(t *testing.T) {
+	psk := base64.StdEncoding.EncodeToString([]byte("test-secret"))
+	clientID := "test-client"
+	nonce := "abc123"
+
+	hmac, err := ComputeAuthHMAC(psk, clientID, nonce)
+	if err != nil {
+		t.Fatalf("ComputeAuthHMAC() error = %v", err)
+	}
+
+	if len(hmac) == 0 {
+		t.Error("ComputeAuthHMAC() returned empty string")
+	}
+}
+
+func TestVerifyAuthHMAC(t *testing.T) {
+	psk := base64.StdEncoding.EncodeToString([]byte("test-secret"))
+	clientID := "test-client"
+	nonce := "abc123"
+
+	hmac, err := ComputeAuthHMAC(psk, clientID, nonce)
+	if err != nil {
+		t.Fatalf("ComputeAuthHMAC() error = %v", err)
+	}
+
+	// Verify should succeed
+	valid, err := VerifyAuthHMAC(psk, clientID, nonce, hmac)
+	if err != nil {
+		t.Fatalf("VerifyAuthHMAC() error = %v", err)
+	}
+	if !valid {
+		t.Error("VerifyAuthHMAC() = false, want true")
+	}
+
+	// Verify should fail with wrong HMAC
+	valid, err = VerifyAuthHMAC(psk, clientID, nonce, "wrong-hmac")
+	if err != nil {
+		t.Fatalf("VerifyAuthHMAC() error = %v", err)
+	}
+	if valid {
+		t.Error("VerifyAuthHMAC() = true for wrong HMAC, want false")
+	}
+
+	// Verify should fail with wrong client ID
+	valid, err = VerifyAuthHMAC(psk, "wrong-client", nonce, hmac)
+	if err != nil {
+		t.Fatalf("VerifyAuthHMAC() error = %v", err)
+	}
+	if valid {
+		t.Error("VerifyAuthHMAC() = true for wrong client ID, want false")
+	}
+}
+
+// Test messages.go functions
+
+func TestNewMessage(t *testing.T) {
+	tests := []struct {
+		name    string
+		msgType MessageType
+		data    interface{}
+		wantErr bool
+	}{
+		{
+			name:    "message without data",
+			msgType: MessageTypePing,
+			data:    nil,
+			wantErr: false,
+		},
+		{
+			name:    "message with struct data",
+			msgType: MessageTypeAuth,
+			data: &AuthMessage{
+				ClientID: "test",
+				Nonce:    "abc123",
+				HMAC:     "hmac-value",
+			},
+			wantErr: false,
+		},
+		{
+			name:    "message with map data",
+			msgType: MessageTypeMetrics,
+			data: map[string]interface{}{
+				"active_streams": 5,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg, err := NewMessage(tt.msgType, tt.data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewMessage() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if msg.Type != tt.msgType {
+					t.Errorf("NewMessage() type = %v, want %v", msg.Type, tt.msgType)
+				}
+			}
+		})
+	}
+}
+
+func TestMessageParseData(t *testing.T) {
+	authData := &AuthMessage{
+		ClientID: "test-client",
+		Nonce:    "abc123",
+		HMAC:     "hmac-value",
+	}
+
+	msg, err := NewMessage(MessageTypeAuth, authData)
+	if err != nil {
+		t.Fatalf("NewMessage() error = %v", err)
+	}
+
+	var parsed AuthMessage
+	err = msg.ParseData(&parsed)
+	if err != nil {
+		t.Fatalf("ParseData() error = %v", err)
+	}
+
+	if parsed.ClientID != authData.ClientID {
+		t.Errorf("ParseData() ClientID = %v, want %v", parsed.ClientID, authData.ClientID)
+	}
+	if parsed.Nonce != authData.Nonce {
+		t.Errorf("ParseData() Nonce = %v, want %v", parsed.Nonce, authData.Nonce)
+	}
+	if parsed.HMAC != authData.HMAC {
+		t.Errorf("ParseData() HMAC = %v, want %v", parsed.HMAC, authData.HMAC)
+	}
+}
+
+func TestMessageParseDataNoData(t *testing.T) {
+	msg, err := NewMessage(MessageTypePing, nil)
+	if err != nil {
+		t.Fatalf("NewMessage() error = %v", err)
+	}
+
+	var parsed PingMessage
+	err = msg.ParseData(&parsed)
+	if err == nil {
+		t.Error("ParseData() expected error for message with no data")
+	}
+}
+
+func TestMessageMarshalUnmarshal(t *testing.T) {
+	authData := &AuthMessage{
+		ClientID: "test-client",
+		Nonce:    "abc123",
+		HMAC:     "hmac-value",
+	}
+
+	msg, err := NewMessage(MessageTypeAuth, authData)
+	if err != nil {
+		t.Fatalf("NewMessage() error = %v", err)
+	}
+
+	// Marshal
+	data, err := msg.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+
+	if len(data) == 0 {
+		t.Error("Marshal() returned empty data")
+	}
+
+	// Unmarshal
+	msg2, err := UnmarshalMessage(data)
+	if err != nil {
+		t.Fatalf("UnmarshalMessage() error = %v", err)
+	}
+
+	if msg2.Type != msg.Type {
+		t.Errorf("UnmarshalMessage() Type = %v, want %v", msg2.Type, msg.Type)
+	}
+
+	// Parse data
+	var parsed AuthMessage
+	err = msg2.ParseData(&parsed)
+	if err != nil {
+		t.Fatalf("ParseData() error = %v", err)
+	}
+
+	if parsed.ClientID != authData.ClientID {
+		t.Errorf("Parsed ClientID = %v, want %v", parsed.ClientID, authData.ClientID)
+	}
+}
+
+func TestUnmarshalMessageInvalid(t *testing.T) {
+	_, err := UnmarshalMessage([]byte("invalid json"))
+	if err == nil {
+		t.Error("UnmarshalMessage() expected error for invalid JSON")
+	}
+}
+
+func TestAllMessageTypes(t *testing.T) {
+	messageTypes := []MessageType{
+		MessageTypeAuth,
+		MessageTypeAuthOK,
+		MessageTypeAuthFail,
+		MessageTypeOpen,
+		MessageTypeClose,
+		MessageTypeMetrics,
+		MessageTypePing,
+		MessageTypePong,
+	}
+
+	for _, msgType := range messageTypes {
+		msg, err := NewMessage(msgType, nil)
+		if err != nil {
+			t.Errorf("NewMessage(%v) error = %v", msgType, err)
+		}
+		if msg.Type != msgType {
+			t.Errorf("NewMessage(%v) Type = %v", msgType, msg.Type)
+		}
+	}
+}
+
+// Test framing.go functions using bufio (avoiding QUIC stream dependency)
+
+func TestWriteReadMessageBuffered(t *testing.T) {
+	authData := &AuthMessage{
+		ClientID: "test-client",
+		Nonce:    "abc123",
+		HMAC:     "hmac-value",
+	}
+
+	msg, err := NewMessage(MessageTypeAuth, authData)
+	if err != nil {
+		t.Fatalf("NewMessage() error = %v", err)
+	}
+
+	// Create buffer
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+	reader := bufio.NewReader(&buf)
+
+	// Write message
+	err = WriteMessageBuffered(writer, msg)
+	if err != nil {
+		t.Fatalf("WriteMessageBuffered() error = %v", err)
+	}
+
+	// Read message
+	msg2, err := ReadMessageBuffered(reader)
+	if err != nil {
+		t.Fatalf("ReadMessageBuffered() error = %v", err)
+	}
+
+	if msg2.Type != msg.Type {
+		t.Errorf("ReadMessageBuffered() Type = %v, want %v", msg2.Type, msg.Type)
+	}
+
+	// Parse data
+	var parsed AuthMessage
+	err = msg2.ParseData(&parsed)
+	if err != nil {
+		t.Fatalf("ParseData() error = %v", err)
+	}
+
+	if parsed.ClientID != authData.ClientID {
+		t.Errorf("Parsed ClientID = %v, want %v", parsed.ClientID, authData.ClientID)
+	}
+}
+
+func TestWriteMessageBufferedTooLarge(t *testing.T) {
+	// Create message with data larger than MaxMessageSize
+	largeData := make([]byte, MaxMessageSize+1)
+	for i := range largeData {
+		largeData[i] = 'a'
+	}
+
+	msg := &Message{
+		Type: MessageTypeAuth,
+		Data: json.RawMessage(largeData),
+	}
+
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+
+	err := WriteMessageBuffered(writer, msg)
+	if err == nil {
+		t.Error("WriteMessageBuffered() expected error for message too large")
+	}
+}
+
+func TestReadMessageBufferedTooLarge(t *testing.T) {
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+
+	// Write a length that exceeds MaxMessageSize
+	largeLength := uint32(MaxMessageSize + 1)
+	writer.Write([]byte{
+		byte(largeLength >> 24),
+		byte(largeLength >> 16),
+		byte(largeLength >> 8),
+		byte(largeLength),
+	})
+	writer.Flush()
+
+	reader := bufio.NewReader(&buf)
+	_, err := ReadMessageBuffered(reader)
+	if err == nil {
+		t.Error("ReadMessageBuffered() expected error for message too large")
+	}
+}
+
+func TestReadMessageBufferedEOF(t *testing.T) {
+	var buf bytes.Buffer
+	reader := bufio.NewReader(&buf)
+
+	_, err := ReadMessageBuffered(reader)
+	if err == nil {
+		t.Error("ReadMessageBuffered() expected EOF error")
+	}
+}
+
+func TestMultipleMessagesBuffered(t *testing.T) {
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+
+	// Write multiple messages
+	messages := []MessageType{
+		MessageTypeAuth,
+		MessageTypeAuthOK,
+		MessageTypePing,
+	}
+
+	for _, msgType := range messages {
+		msg, err := NewMessage(msgType, nil)
+		if err != nil {
+			t.Fatalf("NewMessage() error = %v", err)
+		}
+		err = WriteMessageBuffered(writer, msg)
+		if err != nil {
+			t.Fatalf("WriteMessageBuffered() error = %v", err)
+		}
+	}
+
+	// Read messages back
+	reader := bufio.NewReader(&buf)
+	for i, expectedType := range messages {
+		msg, err := ReadMessageBuffered(reader)
+		if err != nil {
+			t.Fatalf("ReadMessageBuffered() message %d error = %v", i, err)
+		}
+		if msg.Type != expectedType {
+			t.Errorf("Message %d Type = %v, want %v", i, msg.Type, expectedType)
+		}
+	}
+}
