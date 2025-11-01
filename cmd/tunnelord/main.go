@@ -3,9 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/piwi3910/tunnelor/internal/config"
 	"github.com/piwi3910/tunnelor/internal/logger"
+	"github.com/piwi3910/tunnelor/internal/quic"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -66,12 +69,75 @@ func runServer(cmd *cobra.Command, args []string) {
 		Int("authorized_clients", len(cfg.Auth.PSKMap)).
 		Msg("Server configuration loaded")
 
-	// TODO: Initialize QUIC server
+	// Initialize QUIC server
+	quicServer, err := quic.NewServer(quic.ServerConfig{
+		ListenAddr: cfg.Listen,
+		TLSCert:    cfg.TLSCert,
+		TLSKey:     cfg.TLSKey,
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create QUIC server")
+	}
+
+	// Start QUIC server
+	if err := quicServer.Start(cfg.Listen); err != nil {
+		log.Fatal().Err(err).Msg("Failed to start QUIC server")
+	}
+	defer quicServer.Close()
+
 	// TODO: Start metrics server
-	// TODO: Start accepting connections
 
 	log.Info().Msg("Tunnelord server started successfully")
 
-	// Keep server running
-	select {}
+	// Start accepting connections in background
+	go func() {
+		for {
+			conn, err := quicServer.Accept()
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to accept connection")
+				return
+			}
+
+			// Handle connection in goroutine
+			go handleConnection(conn)
+		}
+	}()
+
+	// Wait for shutdown signal
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	<-sigChan
+
+	log.Info().Msg("Shutting down Tunnelord server...")
+}
+
+func handleConnection(conn *quic.Connection) {
+	log.Info().
+		Str("remote_addr", conn.RemoteAddr()).
+		Str("local_addr", conn.LocalAddr()).
+		Msg("New connection established")
+
+	// TODO: Implement authentication via control stream
+	// TODO: Handle incoming streams
+	// TODO: Set up forwarding
+
+	// For now, just accept and log streams
+	for {
+		stream, err := conn.AcceptStream()
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("remote_addr", conn.RemoteAddr()).
+				Msg("Failed to accept stream")
+			return
+		}
+
+		log.Debug().
+			Uint64("stream_id", uint64(stream.StreamID())).
+			Str("remote_addr", conn.RemoteAddr()).
+			Msg("Stream accepted")
+
+		// TODO: Handle stream based on protocol type
+		stream.Close()
+	}
 }

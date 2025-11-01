@@ -3,9 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/piwi3910/tunnelor/internal/config"
 	"github.com/piwi3910/tunnelor/internal/logger"
+	"github.com/piwi3910/tunnelor/internal/quic"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -98,14 +101,37 @@ func runConnect(cmd *cobra.Command, args []string) {
 		Int("forwards", len(cfg.Forwards)).
 		Msg("Client configuration loaded")
 
-	// TODO: Connect to QUIC server
-	// TODO: Authenticate with PSK
+	// Create QUIC client
+	quicClient, err := quic.NewClient(quic.ClientConfig{
+		ServerAddr:         cfg.Server,
+		InsecureSkipVerify: true, // TODO: Add CA certificate support
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create QUIC client")
+	}
+	defer quicClient.Close()
+
+	// Connect to QUIC server
+	if err := quicClient.Connect(); err != nil {
+		log.Fatal().Err(err).Msg("Failed to connect to QUIC server")
+	}
+
+	log.Info().
+		Str("server", cfg.Server).
+		Str("local_addr", quicClient.Connection().LocalAddr()).
+		Msg("Connected to server")
+
+	// TODO: Authenticate with PSK via control stream
 	// TODO: Establish port forwards
 
-	log.Info().Msg("Tunnelorc client connected successfully")
+	log.Info().Msg("Tunnelorc client ready")
 
-	// Keep client running
-	select {}
+	// Wait for shutdown signal
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	<-sigChan
+
+	log.Info().Msg("Shutting down Tunnelorc client...")
 }
 
 func runForward(cmd *cobra.Command, args []string) {
