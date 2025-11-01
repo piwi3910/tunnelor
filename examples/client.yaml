@@ -1,0 +1,23 @@
+client:
+  # QUIC server address
+  # Format: quic://hostname:port or quic://ip:port
+  server: quic://localhost:4433
+
+  # Client identifier (must match an entry in server's psk_map)
+  client_id: pascal
+
+  # Pre-shared key for authentication (base64-encoded)
+  # Must match the PSK in server's psk_map for this client_id
+  psk: dGhpc2lzYXNlY3JldGtleWZvcnRlc3RpbmdwdXJwb3Nlcw==
+
+  # Port forwards to establish
+  forwards:
+    # Forward local port 8080 to remote target 10.0.0.5:9000 via TCP
+    - local: 127.0.0.1:8080
+      remote: 10.0.0.5:9000
+      proto: tcp
+
+    # Forward local port 5353 to remote DNS server via UDP
+    - local: 127.0.0.1:5353
+      remote: 8.8.8.8:53
+      proto: udp

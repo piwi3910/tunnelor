@@ -1,0 +1,19 @@
+server:
+  # Address to listen for QUIC connections
+  listen: 0.0.0.0:4433
+
+  # TLS certificate and key for QUIC/TLS
+  # Generate with: openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -days 365 -nodes
+  tls_cert: /etc/tunnelor/server.crt
+  tls_key: /etc/tunnelor/server.key
+
+  # Port for Prometheus metrics endpoint (optional)
+  # Access metrics at http://localhost:9090/metrics
+  metrics_port: 9090
+
+auth:
+  # Pre-shared key map: client_id -> base64-encoded PSK
+  # Generate PSK with: openssl rand -base64 32
+  psk_map:
+    "pascal": "dGhpc2lzYXNlY3JldGtleWZvcnRlc3RpbmdwdXJwb3Nlcw=="
+    "client-a": "YW5vdGhlcnNlY3JldGtleWZvcmF1dGhlbnRpY2F0aW9u"
