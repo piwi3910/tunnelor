@@ -2,6 +2,7 @@ package tcpbridge
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -68,7 +69,7 @@ func TestBidirectionalCopy(t *testing.T) {
 	select {
 	case err := <-done:
 		// Copy completed
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			t.Errorf("BidirectionalCopy() unexpected error: %v", err)
 		}
 

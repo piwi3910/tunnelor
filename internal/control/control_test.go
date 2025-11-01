@@ -41,7 +41,7 @@ func TestComputeHMAC(t *testing.T) {
 		t.Fatalf("ComputeHMAC() error = %v", err)
 	}
 
-	if len(hmac1) == 0 {
+	if hmac1 == "" {
 		t.Error("ComputeHMAC() returned empty string")
 	}
 
@@ -132,7 +132,7 @@ func TestComputeAuthHMAC(t *testing.T) {
 		t.Fatalf("ComputeAuthHMAC() error = %v", err)
 	}
 
-	if len(hmac) == 0 {
+	if hmac == "" {
 		t.Error("ComputeAuthHMAC() returned empty string")
 	}
 }

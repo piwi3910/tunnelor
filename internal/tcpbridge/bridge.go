@@ -31,7 +31,9 @@ func BidirectionalCopy(conn1 io.ReadWriteCloser, conn2 io.ReadWriteCloser) error
 		}
 		// Close write side to signal EOF
 		if closer, ok := conn2.(interface{ CloseWrite() error }); ok {
-			closer.CloseWrite()
+			if err := closer.CloseWrite(); err != nil {
+				errChan <- fmt.Errorf("failed to close conn2 write side: %w", err)
+			}
 		}
 	}()
 
@@ -44,7 +46,9 @@ func BidirectionalCopy(conn1 io.ReadWriteCloser, conn2 io.ReadWriteCloser) error
 		}
 		// Close write side to signal EOF
 		if closer, ok := conn1.(interface{ CloseWrite() error }); ok {
-			closer.CloseWrite()
+			if err := closer.CloseWrite(); err != nil {
+				errChan <- fmt.Errorf("failed to close conn1 write side: %w", err)
+			}
 		}
 	}()
 
