@@ -1,7 +1,6 @@
 package mux
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -228,43 +227,4 @@ func DecodeUDPMetadata(data []byte) (*UDPMetadata, error) {
 		return nil, fmt.Errorf("failed to decode UDP metadata: %w", err)
 	}
 	return &meta, nil
-}
-
-// UDPDatagram represents a UDP datagram in the stream
-type UDPDatagram struct {
-	Length uint16 // Datagram length
-	Data   []byte // Datagram data
-}
-
-// WriteUDPDatagram writes a UDP datagram to a writer
-func WriteUDPDatagram(w io.Writer, datagram *UDPDatagram) error {
-	// Write length (2 bytes, big-endian)
-	if err := binary.Write(w, binary.BigEndian, datagram.Length); err != nil {
-		return fmt.Errorf("failed to write datagram length: %w", err)
-	}
-
-	// Write data
-	if _, err := w.Write(datagram.Data); err != nil {
-		return fmt.Errorf("failed to write datagram data: %w", err)
-	}
-
-	return nil
-}
-
-// ReadUDPDatagram reads a UDP datagram from a reader
-func ReadUDPDatagram(r io.Reader) (*UDPDatagram, error) {
-	datagram := &UDPDatagram{}
-
-	// Read length (2 bytes, big-endian)
-	if err := binary.Read(r, binary.BigEndian, &datagram.Length); err != nil {
-		return nil, fmt.Errorf("failed to read datagram length: %w", err)
-	}
-
-	// Read data
-	datagram.Data = make([]byte, datagram.Length)
-	if _, err := io.ReadFull(r, datagram.Data); err != nil {
-		return nil, fmt.Errorf("failed to read datagram data: %w", err)
-	}
-
-	return datagram, nil
 }

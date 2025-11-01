@@ -13,6 +13,7 @@ import (
 	"github.com/piwi3910/tunnelor/internal/mux"
 	"github.com/piwi3910/tunnelor/internal/quic"
 	"github.com/piwi3910/tunnelor/internal/tcpbridge"
+	"github.com/piwi3910/tunnelor/internal/udpbridge"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -144,8 +145,10 @@ func runConnect(cmd *cobra.Command, args []string) {
 	// Register default handlers (for responses from server)
 	mux.RegisterDefaultHandlers(multiplexer)
 
-	// Start TCP forwards
-	var listeners []*tcpbridge.TCPListener
+	// Start TCP and UDP forwards
+	var tcpListeners []*tcpbridge.TCPListener
+	var udpListeners []*udpbridge.UDPListener
+
 	for _, fwd := range cfg.Forwards {
 		if fwd.Proto == "tcp" {
 			// Create stream opener function for this forward
@@ -174,7 +177,7 @@ func runConnect(cmd *cobra.Command, args []string) {
 			if err := listener.Start(); err != nil {
 				log.Fatal().Err(err).Str("local", fwd.Local).Msg("Failed to start TCP listener")
 			}
-			listeners = append(listeners, listener)
+			tcpListeners = append(tcpListeners, listener)
 
 			// Start serving in background
 			go func(l *tcpbridge.TCPListener) {
@@ -187,12 +190,56 @@ func runConnect(cmd *cobra.Command, args []string) {
 				Str("local", fwd.Local).
 				Str("remote", fwd.Remote).
 				Msg("TCP forward established")
+
+		} else if fwd.Proto == "udp" {
+			// Create stream opener function for this forward
+			targetAddr := fwd.Remote
+			streamOpener := func() (*quicgo.Stream, error) {
+				// Encode UDP metadata
+				metadata, err := mux.EncodeUDPMetadata(mux.UDPMetadata{
+					SourceAddr: fwd.Local,
+					TargetAddr: targetAddr,
+				})
+				if err != nil {
+					return nil, err
+				}
+
+				// Open multiplexed stream
+				muxStream, err := multiplexer.OpenStream(mux.ProtocolUDP, metadata)
+				if err != nil {
+					return nil, err
+				}
+
+				return muxStream.Stream, nil
+			}
+
+			// Create UDP listener
+			listener := udpbridge.NewUDPListener(fwd.Local, fwd.Remote, streamOpener)
+			if err := listener.Start(); err != nil {
+				log.Fatal().Err(err).Str("local", fwd.Local).Msg("Failed to start UDP listener")
+			}
+			udpListeners = append(udpListeners, listener)
+
+			// Start serving in background
+			go func(l *udpbridge.UDPListener) {
+				if err := l.Serve(); err != nil {
+					log.Error().Err(err).Msg("UDP listener error")
+				}
+			}(listener)
+
+			log.Info().
+				Str("local", fwd.Local).
+				Str("remote", fwd.Remote).
+				Msg("UDP forward established")
 		}
 	}
 
 	// Clean up listeners on exit
 	defer func() {
-		for _, l := range listeners {
+		for _, l := range tcpListeners {
+			l.Close()
+		}
+		for _, l := range udpListeners {
 			l.Close()
 		}
 	}()

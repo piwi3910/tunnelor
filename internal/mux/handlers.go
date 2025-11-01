@@ -7,6 +7,7 @@ import (
 
 	quicgo "github.com/quic-go/quic-go"
 	"github.com/piwi3910/tunnelor/internal/tcpbridge"
+	"github.com/piwi3910/tunnelor/internal/udpbridge"
 	"github.com/rs/zerolog/log"
 )
 
@@ -54,37 +55,23 @@ func DefaultUDPHandler(ctx context.Context, stream *quicgo.Stream, header *Strea
 		Msg("UDP stream handler called")
 
 	// Parse UDP metadata
-	if len(header.Metadata) > 0 {
-		meta, err := DecodeUDPMetadata(header.Metadata)
-		if err != nil {
-			return fmt.Errorf("failed to decode UDP metadata: %w", err)
-		}
-
-		log.Info().
-			Str("source", meta.SourceAddr).
-			Str("target", meta.TargetAddr).
-			Uint64("stream_id", uint64(stream.StreamID())).
-			Msg("UDP stream opened")
+	if len(header.Metadata) == 0 {
+		return fmt.Errorf("UDP stream missing metadata")
 	}
 
-	// TODO: Implement UDP forwarding logic
-	// For now, just read and discard datagrams
-	for {
-		datagram, err := ReadUDPDatagram(stream)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return fmt.Errorf("failed to read UDP datagram: %w", err)
-		}
-
-		log.Debug().
-			Uint64("stream_id", uint64(stream.StreamID())).
-			Int("size", len(datagram.Data)).
-			Msg("Received UDP datagram")
+	meta, err := DecodeUDPMetadata(header.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to decode UDP metadata: %w", err)
 	}
 
-	return nil
+	log.Info().
+		Str("source", meta.SourceAddr).
+		Str("target", meta.TargetAddr).
+		Uint64("stream_id", uint64(stream.StreamID())).
+		Msg("UDP stream opened, forwarding to target")
+
+	// Forward QUIC stream to UDP target
+	return udpbridge.QUICToUDP(stream, meta.TargetAddr, ctx)
 }
 
 // DefaultRawHandler is a default handler for raw streams
