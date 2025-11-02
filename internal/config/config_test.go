@@ -9,9 +9,9 @@ import (
 func TestValidateServerConfig(t *testing.T) {
 	tests := []struct {
 		name    string
+		errMsg  string
 		config  ServerConfig
 		wantErr bool
-		errMsg  string
 	}{
 		{
 			name: "valid config",
@@ -103,9 +103,9 @@ func TestValidateServerConfig(t *testing.T) {
 func TestValidateClientConfig(t *testing.T) {
 	tests := []struct {
 		name    string
+		errMsg  string
 		config  ClientConfig
 		wantErr bool
-		errMsg  string
 	}{
 		{
 			name: "valid config",
