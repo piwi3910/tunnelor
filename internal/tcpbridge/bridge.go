@@ -16,7 +16,7 @@ import (
 const CopyBuffer = 32 * 1024 // 32KB
 
 // BidirectionalCopy copies data bidirectionally between two connections
-func BidirectionalCopy(conn1 io.ReadWriteCloser, conn2 io.ReadWriteCloser) error {
+func BidirectionalCopy(conn1, conn2 io.ReadWriteCloser) error {
 	var wg sync.WaitGroup
 	wg.Add(2)
 

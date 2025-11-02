@@ -107,7 +107,7 @@ func TestBidirectionalCopyLargeData(t *testing.T) {
 }
 
 // TestStreamWrapper tests the StreamWrapper type
-func TestStreamWrapper(t *testing.T) {
+func TestStreamWrapper(_ *testing.T) {
 	// Note: StreamWrapper wraps *quic.Stream which we can't easily mock
 	// This test just verifies the type exists and compiles correctly
 	// Full testing would require integration tests with actual QUIC streams

@@ -93,10 +93,8 @@ func TestValidateServerConfig(t *testing.T) {
 				if err.Error() != tt.errMsg {
 					t.Errorf("validateServerConfig() error = %v, want %v", err, tt.errMsg)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("validateServerConfig() unexpected error: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("validateServerConfig() unexpected error: %v", err)
 			}
 		})
 	}
@@ -240,10 +238,8 @@ func TestValidateClientConfig(t *testing.T) {
 				if err.Error() != tt.errMsg {
 					t.Errorf("validateClientConfig() error = %v, want %v", err, tt.errMsg)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("validateClientConfig() unexpected error: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("validateClientConfig() unexpected error: %v", err)
 			}
 		})
 	}

@@ -212,13 +212,13 @@ func runConnect(_ *cobra.Command, _ []string) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create QUIC client")
 	}
-	defer quicClient.Close()
 
 	// Connect to QUIC server
 	if err := quicClient.Connect(); err != nil {
 		quicClient.Close()
 		log.Fatal().Err(err).Msg("Failed to connect to QUIC server")
 	}
+	defer quicClient.Close()
 
 	log.Info().
 		Str("server", cfg.Server).
