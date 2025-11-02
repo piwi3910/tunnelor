@@ -218,7 +218,6 @@ func runConnect(_ *cobra.Command, _ []string) {
 		quicClient.Close()
 		log.Fatal().Err(err).Msg("Failed to connect to QUIC server")
 	}
-	defer quicClient.Close()
 
 	log.Info().
 		Str("server", cfg.Server).
@@ -233,6 +232,7 @@ func runConnect(_ *cobra.Command, _ []string) {
 		quicClient.Close()
 		log.Fatal().Err(err).Msg("Failed to authenticate with server")
 	}
+	defer quicClient.Close()
 
 	log.Info().
 		Str("session_id", controlHandler.GetSessionID()).

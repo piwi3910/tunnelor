@@ -168,7 +168,11 @@ func (m *Multiplexer) ServeStreams() error {
 
 		// Handle stream in goroutine
 		go func(ms *Stream) {
-			defer m.CloseStream(ms.StreamID)
+			defer func() {
+				if err := m.CloseStream(ms.StreamID); err != nil {
+					log.Error().Err(err).Uint64("stream_id", ms.StreamID).Msg("Failed to close stream")
+				}
+			}()
 
 			if err := m.HandleStream(ms); err != nil {
 				log.Error().
