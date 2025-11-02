@@ -16,12 +16,12 @@ type StreamHandler func(ctx context.Context, stream *quicgo.Stream, header *Stre
 
 // Multiplexer manages stream multiplexing and dispatching
 type Multiplexer struct {
+	ctx        context.Context
 	connection *quic.Connection
 	handlers   map[ProtocolID]StreamHandler
 	streams    map[uint64]*Stream
-	mu         sync.RWMutex
-	ctx        context.Context
 	cancel     context.CancelFunc
+	mu         sync.RWMutex
 }
 
 // Stream represents a multiplexed stream with its header

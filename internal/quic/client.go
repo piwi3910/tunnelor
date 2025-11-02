@@ -14,20 +14,20 @@ import (
 
 // Client represents a QUIC client connection manager
 type Client struct {
-	serverAddr string
+	ctx        context.Context
 	tlsConfig  *tls.Config
 	quicConfig *quic.Config
 	connection *Connection
-	ctx        context.Context
 	cancel     context.CancelFunc
+	serverAddr string
 }
 
 // ClientConfig holds configuration for the QUIC client
 type ClientConfig struct {
 	ServerAddr         string
 	ServerName         string
-	InsecureSkipVerify bool
 	CAFile             string
+	InsecureSkipVerify bool
 }
 
 // NewClient creates a new QUIC client

@@ -8,14 +8,14 @@ import (
 func TestProtocolID_String(t *testing.T) {
 	tests := []struct {
 		name     string
-		protocol ProtocolID
 		expected string
+		protocol ProtocolID
 	}{
-		{"TCP", ProtocolTCP, "TCP"},
-		{"UDP", ProtocolUDP, "UDP"},
-		{"Control", ProtocolControl, "CONTROL"},
-		{"Raw", ProtocolRaw, "RAW"},
-		{"Unknown", ProtocolID(0xFF), "UNKNOWN(0xff)"},
+		{name: "TCP", protocol: ProtocolTCP, expected: "TCP"},
+		{name: "UDP", protocol: ProtocolUDP, expected: "UDP"},
+		{name: "Control", protocol: ProtocolControl, expected: "CONTROL"},
+		{name: "Raw", protocol: ProtocolRaw, expected: "RAW"},
+		{name: "Unknown", protocol: ProtocolID(0xFF), expected: "UNKNOWN(0xff)"},
 	}
 
 	for _, tt := range tests {
@@ -31,8 +31,8 @@ func TestProtocolID_String(t *testing.T) {
 func TestNewStreamHeader(t *testing.T) {
 	tests := []struct {
 		name     string
-		protocol ProtocolID
 		metadata []byte
+		protocol ProtocolID
 		wantErr  bool
 	}{
 		{
@@ -85,8 +85,8 @@ func TestNewStreamHeader(t *testing.T) {
 
 func TestWriteReadHeader(t *testing.T) {
 	tests := []struct {
-		name   string
 		header *StreamHeader
+		name   string
 	}{
 		{
 			name: "header with metadata",

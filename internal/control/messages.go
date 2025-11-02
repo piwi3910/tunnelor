@@ -60,16 +60,16 @@ type AuthFailMessage struct {
 
 // OpenMessage requests opening a new tunnel
 type OpenMessage struct {
-	StreamID   uint64 `json:"stream_id"`
-	Protocol   string `json:"protocol"` // "tcp" or "udp"
+	Protocol   string `json:"protocol"`
 	LocalAddr  string `json:"local_addr"`
 	RemoteAddr string `json:"remote_addr"`
+	StreamID   uint64 `json:"stream_id"`
 }
 
 // CloseMessage requests closing a stream
 type CloseMessage struct {
-	StreamID uint64 `json:"stream_id"`
 	Reason   string `json:"reason,omitempty"`
+	StreamID uint64 `json:"stream_id"`
 }
 
 // MetricsMessage contains session metrics

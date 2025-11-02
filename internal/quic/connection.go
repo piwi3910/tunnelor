@@ -12,12 +12,12 @@ import (
 
 // Connection represents a QUIC connection with stream management
 type Connection struct {
+	ctx          context.Context
 	conn         *quic.Conn
 	streams      map[uint64]*quic.Stream
-	streamsMutex sync.RWMutex
-	ctx          context.Context
-	isServer     bool
 	remoteAddr   string
+	streamsMutex sync.RWMutex
+	isServer     bool
 }
 
 // OpenStream opens a new bidirectional stream

@@ -22,8 +22,8 @@ const (
 // Config holds logger configuration
 type Config struct {
 	Level      Level
-	Pretty     bool
 	TimeFormat string
+	Pretty     bool
 }
 
 // DefaultConfig returns the default logger configuration

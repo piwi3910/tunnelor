@@ -42,10 +42,10 @@ func (p ProtocolID) String() string {
 // StreamHeader represents the header of a multiplexed stream
 // Format: version(1B) | proto_id(1B) | flags(1B) | meta_len(1B) | meta(...)
 type StreamHeader struct {
-	Version  byte       // Protocol version
-	Protocol ProtocolID // Protocol type
-	Flags    byte       // Protocol-specific flags
-	Metadata []byte     // Protocol-specific metadata
+	Metadata []byte
+	Version  byte
+	Protocol ProtocolID
+	Flags    byte
 }
 
 // StreamVersion is the current protocol version

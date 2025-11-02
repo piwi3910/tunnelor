@@ -13,13 +13,13 @@ import (
 
 // Server represents a QUIC server that accepts connections
 type Server struct {
+	ctx         context.Context
 	listener    *quic.Listener
 	tlsConfig   *tls.Config
 	quicConfig  *quic.Config
 	connections map[string]*Connection
-	connMutex   sync.RWMutex
-	ctx         context.Context
 	cancel      context.CancelFunc
+	connMutex   sync.RWMutex
 }
 
 // ServerConfig holds configuration for the QUIC server

@@ -179,9 +179,9 @@ func TestVerifyAuthHMAC(t *testing.T) {
 
 func TestNewMessage(t *testing.T) {
 	tests := []struct {
+		data    interface{}
 		name    string
 		msgType MessageType
-		data    interface{}
 		wantErr bool
 	}{
 		{

@@ -19,8 +19,8 @@ const SessionTimeout = 2 * time.Minute
 
 // UDPDatagram represents a UDP datagram in the stream
 type UDPDatagram struct {
-	Length uint16 // Datagram length
-	Data   []byte // Datagram data
+	Data   []byte
+	Length uint16
 }
 
 // WriteUDPDatagram writes a UDP datagram to a writer
@@ -168,14 +168,14 @@ func QUICToUDP(ctx context.Context, quicStream *quicgo.Stream, targetAddr string
 
 // UDPListener listens for UDP datagrams and forwards them over QUIC
 type UDPListener struct {
-	listenAddr   string
-	targetAddr   string
+	ctx          context.Context
 	conn         *net.UDPConn
 	streamOpener func() (*quicgo.Stream, error)
 	sessions     map[string]*UDPSession
-	sessionMutex sync.RWMutex
-	ctx          context.Context
 	cancel       context.CancelFunc
+	listenAddr   string
+	targetAddr   string
+	sessionMutex sync.RWMutex
 }
 
 // NewUDPListener creates a new UDP listener for forwarding

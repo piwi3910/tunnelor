@@ -12,11 +12,11 @@ import (
 
 // ClientHandler handles control plane operations on the client side
 type ClientHandler struct {
+	lastPing   time.Time
+	connection *quic.Connection
 	clientID   string
 	psk        string
-	connection *quic.Connection
 	sessionID  string
-	lastPing   time.Time
 }
 
 // NewClientHandler creates a new client control handler

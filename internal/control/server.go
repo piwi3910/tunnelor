@@ -19,11 +19,11 @@ type ServerHandler struct {
 
 // Session represents an authenticated client session
 type Session struct {
+	AuthTime   time.Time
+	LastSeen   time.Time
 	SessionID  string
 	ClientID   string
 	RemoteAddr string
-	AuthTime   time.Time
-	LastSeen   time.Time
 }
 
 // NewServerHandler creates a new server control handler
