@@ -37,7 +37,7 @@ var connectCmd = &cobra.Command{
 	Use:   "connect",
 	Short: "Connect to Tunnelor server and establish tunnels",
 	Long:  `Connects to the Tunnelor server using configuration from the config file and establishes the configured port forwards.`,
-	Run:   runConnect,
+	RunE:  runConnect,
 }
 
 var forwardCmd = &cobra.Command{
@@ -186,7 +186,7 @@ func setupUDPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*u
 	return listener, nil
 }
 
-func runConnect(_ *cobra.Command, _ []string) {
+func runConnect(_ *cobra.Command, _ []string) error {
 	// Setup logging
 	setupLogging(verbose, pretty)
 
@@ -195,7 +195,8 @@ func runConnect(_ *cobra.Command, _ []string) {
 	// Load configuration
 	cfg, err := config.LoadClientConfig(cfgFile)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to load client configuration")
+		log.Error().Err(err).Msg("Failed to load client configuration")
+		return fmt.Errorf("Failed to load client configuration: %w", err)
 	}
 
 	log.Info().
@@ -210,13 +211,15 @@ func runConnect(_ *cobra.Command, _ []string) {
 		InsecureSkipVerify: true, // TODO: Add CA certificate support
 	})
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create QUIC client")
+		log.Error().Err(err).Msg("Failed to create QUIC client")
+		return fmt.Errorf("Failed to create QUIC client: %w", err)
 	}
 
 	// Connect to QUIC server
 	if err := quicClient.Connect(); err != nil {
 		quicClient.Close()
-		log.Fatal().Err(err).Msg("Failed to connect to QUIC server")
+		log.Error().Err(err).Msg("Failed to connect to QUIC server")
+		return fmt.Errorf("Failed to connect to QUIC server: %w", err)
 	}
 
 	log.Info().
@@ -230,7 +233,8 @@ func runConnect(_ *cobra.Command, _ []string) {
 	// Authenticate with server
 	if err := controlHandler.Authenticate(); err != nil {
 		quicClient.Close()
-		log.Fatal().Err(err).Msg("Failed to authenticate with server")
+		log.Error().Err(err).Msg("Failed to authenticate with server")
+		return fmt.Errorf("Failed to authenticate with server: %w", err)
 	}
 	defer quicClient.Close()
 
@@ -249,20 +253,30 @@ func runConnect(_ *cobra.Command, _ []string) {
 	var tcpListeners []*tcpbridge.TCPListener
 	var udpListeners []*udpbridge.UDPListener
 
+	// Setup all forwards before starting to serve
+	setupSuccess := true
 	for _, fwd := range cfg.Forwards {
 		if fwd.Proto == "tcp" {
 			listener, err := setupTCPForward(fwd, multiplexer)
 			if err != nil {
-				log.Fatal().Err(err).Str("local", fwd.Local).Msg("Failed to start TCP listener")
+				log.Error().Err(err).Str("local", fwd.Local).Msg("Failed to start TCP forward")
+				setupSuccess = false
+				break
 			}
 			tcpListeners = append(tcpListeners, listener)
 		} else if fwd.Proto == "udp" {
 			listener, err := setupUDPForward(fwd, multiplexer)
 			if err != nil {
-				log.Fatal().Err(err).Str("local", fwd.Local).Msg("Failed to start UDP listener")
+				log.Error().Err(err).Str("local", fwd.Local).Msg("Failed to start UDP forward")
+				setupSuccess = false
+				break
 			}
 			udpListeners = append(udpListeners, listener)
 		}
+	}
+
+	if !setupSuccess {
+		return fmt.Errorf("failed to setup forwards")
 	}
 
 	// Clean up listeners on exit
@@ -283,6 +297,7 @@ func runConnect(_ *cobra.Command, _ []string) {
 	<-sigChan
 
 	log.Info().Msg("Shutting down Tunnelorc client...")
+	return nil
 }
 
 func runForward(_ *cobra.Command, _ []string) {
