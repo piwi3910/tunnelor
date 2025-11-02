@@ -253,16 +253,12 @@ func runConnect(_ *cobra.Command, _ []string) {
 		if fwd.Proto == "tcp" {
 			listener, err := setupTCPForward(fwd, multiplexer)
 			if err != nil {
-				multiplexer.Close()
-				quicClient.Close()
 				log.Fatal().Err(err).Str("local", fwd.Local).Msg("Failed to start TCP listener")
 			}
 			tcpListeners = append(tcpListeners, listener)
 		} else if fwd.Proto == "udp" {
 			listener, err := setupUDPForward(fwd, multiplexer)
 			if err != nil {
-				multiplexer.Close()
-				quicClient.Close()
 				log.Fatal().Err(err).Str("local", fwd.Local).Msg("Failed to start UDP listener")
 			}
 			udpListeners = append(udpListeners, listener)
