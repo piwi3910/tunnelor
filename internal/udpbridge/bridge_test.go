@@ -201,10 +201,9 @@ func TestNewUDPListener(t *testing.T) {
 
 	// Note: In real code streamOpener would return *quicgo.Stream
 	listener := &UDPListener{
-		listenAddr:   listenAddr,
-		targetAddr:   targetAddr,
-		streamOpener: nil, // Can't test without QUIC
-		sessions:     make(map[string]*UDPSession),
+		listenAddr: listenAddr,
+		targetAddr: targetAddr,
+		sessions:   make(map[string]*UDPSession),
 	}
 
 	if listener.listenAddr != listenAddr {
