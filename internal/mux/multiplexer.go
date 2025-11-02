@@ -18,14 +18,14 @@ type StreamHandler func(ctx context.Context, stream *quicgo.Stream, header *Stre
 type Multiplexer struct {
 	connection *quic.Connection
 	handlers   map[ProtocolID]StreamHandler
-	streams    map[uint64]*MuxStream
+	streams    map[uint64]*Stream
 	mu         sync.RWMutex
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
 
-// MuxStream represents a multiplexed stream with its header
-type MuxStream struct {
+// Stream represents a multiplexed stream with its header
+type Stream struct {
 	Stream   *quicgo.Stream
 	Header   *StreamHeader
 	StreamID uint64
@@ -38,7 +38,7 @@ func NewMultiplexer(conn *quic.Connection) *Multiplexer {
 	return &Multiplexer{
 		connection: conn,
 		handlers:   make(map[ProtocolID]StreamHandler),
-		streams:    make(map[uint64]*MuxStream),
+		streams:    make(map[uint64]*Stream),
 		ctx:        ctx,
 		cancel:     cancel,
 	}
@@ -57,7 +57,7 @@ func (m *Multiplexer) RegisterHandler(protocol ProtocolID, handler StreamHandler
 }
 
 // OpenStream opens a new multiplexed stream with the given protocol
-func (m *Multiplexer) OpenStream(protocol ProtocolID, metadata []byte) (*MuxStream, error) {
+func (m *Multiplexer) OpenStream(protocol ProtocolID, metadata []byte) (*Stream, error) {
 	// Open QUIC stream
 	stream, err := m.connection.OpenStream()
 	if err != nil {
@@ -78,7 +78,7 @@ func (m *Multiplexer) OpenStream(protocol ProtocolID, metadata []byte) (*MuxStre
 	}
 
 	// Create mux stream
-	muxStream := &MuxStream{
+	muxStream := &Stream{
 		Stream:   stream,
 		Header:   header,
 		StreamID: uint64(stream.StreamID()),
@@ -98,7 +98,7 @@ func (m *Multiplexer) OpenStream(protocol ProtocolID, metadata []byte) (*MuxStre
 }
 
 // AcceptStream accepts an incoming multiplexed stream
-func (m *Multiplexer) AcceptStream() (*MuxStream, error) {
+func (m *Multiplexer) AcceptStream() (*Stream, error) {
 	// Accept QUIC stream
 	stream, err := m.connection.AcceptStream()
 	if err != nil {
@@ -113,7 +113,7 @@ func (m *Multiplexer) AcceptStream() (*MuxStream, error) {
 	}
 
 	// Create mux stream
-	muxStream := &MuxStream{
+	muxStream := &Stream{
 		Stream:   stream,
 		Header:   header,
 		StreamID: uint64(stream.StreamID()),
@@ -133,7 +133,7 @@ func (m *Multiplexer) AcceptStream() (*MuxStream, error) {
 }
 
 // HandleStream dispatches a stream to the appropriate handler
-func (m *Multiplexer) HandleStream(muxStream *MuxStream) error {
+func (m *Multiplexer) HandleStream(muxStream *Stream) error {
 	m.mu.RLock()
 	handler, ok := m.handlers[muxStream.Header.Protocol]
 	m.mu.RUnlock()
@@ -167,7 +167,7 @@ func (m *Multiplexer) ServeStreams() error {
 		}
 
 		// Handle stream in goroutine
-		go func(ms *MuxStream) {
+		go func(ms *Stream) {
 			defer m.CloseStream(ms.StreamID)
 
 			if err := m.HandleStream(ms); err != nil {
@@ -182,7 +182,7 @@ func (m *Multiplexer) ServeStreams() error {
 }
 
 // GetStream returns a stream by ID
-func (m *Multiplexer) GetStream(streamID uint64) (*MuxStream, bool) {
+func (m *Multiplexer) GetStream(streamID uint64) (*Stream, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

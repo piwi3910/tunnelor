@@ -39,7 +39,7 @@ func TestRegisterHandler(t *testing.T) {
 	mux := NewMultiplexer(nil)
 
 	// Test handler function
-	testHandler := func(ctx context.Context, stream *quicgo.Stream, header *StreamHeader) error {
+	testHandler := func(_ context.Context, _ *quicgo.Stream, _ *StreamHeader) error {
 		return nil
 	}
 
@@ -63,7 +63,7 @@ func TestRegisterHandler(t *testing.T) {
 func TestRegisterMultipleHandlers(t *testing.T) {
 	mux := NewMultiplexer(nil)
 
-	handler := func(ctx context.Context, stream *quicgo.Stream, header *StreamHeader) error {
+	handler := func(_ context.Context, _ *quicgo.Stream, _ *StreamHeader) error {
 		return nil
 	}
 
@@ -99,14 +99,14 @@ func TestGetStream(t *testing.T) {
 	}
 
 	// Add a mock stream manually for testing
-	mockMuxStream := &MuxStream{
+	mockStream := &Stream{
 		Stream:   nil, // We don't have a real stream for unit test
 		Header:   &StreamHeader{Protocol: ProtocolTCP},
 		StreamID: 456,
 	}
 
 	mux.mu.Lock()
-	mux.streams[456] = mockMuxStream
+	mux.streams[456] = mockStream
 	mux.mu.Unlock()
 
 	// Test getting existing stream
@@ -134,7 +134,7 @@ func TestStreamCount(t *testing.T) {
 	// Add some mock streams
 	for i := uint64(1); i <= 5; i++ {
 		mux.mu.Lock()
-		mux.streams[i] = &MuxStream{
+		mux.streams[i] = &Stream{
 			StreamID: i,
 			Header:   &StreamHeader{Protocol: ProtocolTCP},
 		}

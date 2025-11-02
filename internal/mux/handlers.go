@@ -14,7 +14,7 @@ import (
 )
 
 // DefaultControlHandler is a default handler for control streams
-func DefaultControlHandler(ctx context.Context, stream *quicgo.Stream, header *StreamHeader) error {
+func DefaultControlHandler(_ context.Context, stream *quicgo.Stream, _ *StreamHeader) error {
 	log.Debug().
 		Uint64("stream_id", uint64(stream.StreamID())).
 		Msg("Control stream handler called")
@@ -25,7 +25,7 @@ func DefaultControlHandler(ctx context.Context, stream *quicgo.Stream, header *S
 }
 
 // DefaultTCPHandler is a default handler for TCP streams
-func DefaultTCPHandler(ctx context.Context, stream *quicgo.Stream, header *StreamHeader) error {
+func DefaultTCPHandler(_ context.Context, stream *quicgo.Stream, header *StreamHeader) error {
 	log.Debug().
 		Uint64("stream_id", uint64(stream.StreamID())).
 		Msg("TCP stream handler called")
@@ -83,7 +83,7 @@ func DefaultUDPHandler(ctx context.Context, stream *quicgo.Stream, header *Strea
 }
 
 // DefaultRawHandler is a default handler for raw streams
-func DefaultRawHandler(ctx context.Context, stream *quicgo.Stream, header *StreamHeader) error {
+func DefaultRawHandler(ctx context.Context, stream *quicgo.Stream, _ *StreamHeader) error {
 	log.Debug().
 		Uint64("stream_id", uint64(stream.StreamID())).
 		Msg("Raw stream handler called")
