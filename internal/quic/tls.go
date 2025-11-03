@@ -30,7 +30,7 @@ func LoadClientTLSConfig(serverName string, insecureSkipVerify bool) (*tls.Confi
 	tlsConfig := &tls.Config{
 		ServerName:         serverName,
 		NextProtos:         []string{"tunnelor"},
-		MinVersion:         tls.VersionTLS13,                      // QUIC requires TLS 1.3
+		MinVersion:         tls.VersionTLS13,   // QUIC requires TLS 1.3
 		InsecureSkipVerify: insecureSkipVerify, // #nosec G402 -- Controlled by user configuration for dev/test environments
 	}
 

@@ -8,19 +8,19 @@ import (
 
 // ConnectionManager tracks active connections and enforces resource limits
 type ConnectionManager struct {
-	mu                     sync.RWMutex
-	connections            map[string]int // client_id -> connection count
-	totalConnections       int
+	mu                      sync.RWMutex
+	connections             map[string]int // client_id -> connection count
+	totalConnections        int
 	maxConnectionsPerClient int
-	maxTotalConnections    int
+	maxTotalConnections     int
 }
 
 // NewConnectionManager creates a new connection manager with specified limits
 func NewConnectionManager(maxPerClient, maxTotal int) *ConnectionManager {
 	return &ConnectionManager{
-		connections:            make(map[string]int),
+		connections:             make(map[string]int),
 		maxConnectionsPerClient: maxPerClient,
-		maxTotalConnections:    maxTotal,
+		maxTotalConnections:     maxTotal,
 	}
 }
 

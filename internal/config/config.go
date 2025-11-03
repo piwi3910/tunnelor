@@ -10,13 +10,13 @@ import (
 
 // ServerConfig holds server-specific configuration
 type ServerConfig struct {
-	Auth                   ServerAuthConfig `mapstructure:"auth"`
-	Listen                 string           `mapstructure:"listen"`
-	TLSCert                string           `mapstructure:"tls_cert"`
-	TLSKey                 string           `mapstructure:"tls_key"`
-	MetricsPort            int              `mapstructure:"metrics_port"`
-	MaxConnectionsPerClient int             `mapstructure:"max_connections_per_client"` // Max connections per client ID (0 = unlimited)
-	MaxTotalConnections    int              `mapstructure:"max_total_connections"`      // Max total connections (0 = unlimited)
+	Auth                    ServerAuthConfig `mapstructure:"auth"`
+	Listen                  string           `mapstructure:"listen"`
+	TLSCert                 string           `mapstructure:"tls_cert"`
+	TLSKey                  string           `mapstructure:"tls_key"`
+	MetricsPort             int              `mapstructure:"metrics_port"`
+	MaxConnectionsPerClient int              `mapstructure:"max_connections_per_client"` // Max connections per client ID (0 = unlimited)
+	MaxTotalConnections     int              `mapstructure:"max_total_connections"`      // Max total connections (0 = unlimited)
 }
 
 // ServerAuthConfig holds server authentication configuration

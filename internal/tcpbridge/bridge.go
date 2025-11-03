@@ -17,6 +17,14 @@ import (
 // CopyBuffer is the buffer size for bidirectional copying
 const CopyBuffer = 32 * 1024 // 32KB
 
+// tcpBufferPool is a sync.Pool for TCP copy buffers to reduce GC pressure
+var tcpBufferPool = sync.Pool{
+	New: func() interface{} {
+		buf := make([]byte, CopyBuffer)
+		return &buf
+	},
+}
+
 // BidirectionalCopy copies data bidirectionally between two connections
 func BidirectionalCopy(conn1, conn2 io.ReadWriteCloser) error {
 	var wg sync.WaitGroup
@@ -27,7 +35,12 @@ func BidirectionalCopy(conn1, conn2 io.ReadWriteCloser) error {
 	// Copy from conn1 to conn2
 	go func() {
 		defer wg.Done()
-		_, err := io.Copy(conn2, conn1)
+
+		// Get buffer from pool
+		bufPtr := tcpBufferPool.Get().(*[]byte)
+		defer tcpBufferPool.Put(bufPtr)
+
+		_, err := io.CopyBuffer(conn2, conn1, *bufPtr)
 		if err != nil && !errors.Is(err, io.EOF) {
 			errChan <- fmt.Errorf("copy conn1->conn2 failed: %w", err)
 		}
@@ -42,7 +55,12 @@ func BidirectionalCopy(conn1, conn2 io.ReadWriteCloser) error {
 	// Copy from conn2 to conn1
 	go func() {
 		defer wg.Done()
-		_, err := io.Copy(conn1, conn2)
+
+		// Get buffer from pool
+		bufPtr := tcpBufferPool.Get().(*[]byte)
+		defer tcpBufferPool.Put(bufPtr)
+
+		_, err := io.CopyBuffer(conn1, conn2, *bufPtr)
 		if err != nil && !errors.Is(err, io.EOF) {
 			errChan <- fmt.Errorf("copy conn2->conn1 failed: %w", err)
 		}
