@@ -161,6 +161,14 @@ func (s *Server) Close() error {
 	return nil
 }
 
+// Addr returns the listener's network address
+func (s *Server) Addr() net.Addr {
+	if s.listener == nil {
+		return nil
+	}
+	return s.listener.Addr()
+}
+
 // ConnectionCount returns the number of active connections
 func (s *Server) ConnectionCount() int {
 	s.connMutex.RLock()
