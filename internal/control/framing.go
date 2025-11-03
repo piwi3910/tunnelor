@@ -41,11 +41,11 @@ func WriteMessage(stream *quicgo.Stream, msg *Message) error {
 	return nil
 }
 
-// ReadMessage reads a framed message from the stream
-func ReadMessage(stream *quicgo.Stream) (*Message, error) {
+// readMessageFromReader reads a framed message from any io.Reader
+func readMessageFromReader(reader io.Reader) (*Message, error) {
 	// Read length prefix (4 bytes, big-endian)
 	var length uint32
-	if err := binary.Read(stream, binary.BigEndian, &length); err != nil {
+	if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil, io.EOF
 		}
@@ -59,7 +59,7 @@ func ReadMessage(stream *quicgo.Stream) (*Message, error) {
 
 	// Read message data
 	data := make([]byte, length)
-	if _, err := io.ReadFull(stream, data); err != nil {
+	if _, err := io.ReadFull(reader, data); err != nil {
 		return nil, fmt.Errorf("failed to read message data: %w", err)
 	}
 
@@ -70,6 +70,11 @@ func ReadMessage(stream *quicgo.Stream) (*Message, error) {
 	}
 
 	return msg, nil
+}
+
+// ReadMessage reads a framed message from the stream
+func ReadMessage(stream *quicgo.Stream) (*Message, error) {
+	return readMessageFromReader(stream)
 }
 
 // WriteMessageBuffered writes a framed message using a buffered writer
@@ -106,31 +111,5 @@ func WriteMessageBuffered(writer *bufio.Writer, msg *Message) error {
 
 // ReadMessageBuffered reads a framed message using a buffered reader
 func ReadMessageBuffered(reader *bufio.Reader) (*Message, error) {
-	// Read length prefix (4 bytes, big-endian)
-	var length uint32
-	if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil, io.EOF
-		}
-		return nil, fmt.Errorf("failed to read message length: %w", err)
-	}
-
-	// Validate message size
-	if length > MaxMessageSize {
-		return nil, fmt.Errorf("message too large: %d bytes (max %d)", length, MaxMessageSize)
-	}
-
-	// Read message data
-	data := make([]byte, length)
-	if _, err := io.ReadFull(reader, data); err != nil {
-		return nil, fmt.Errorf("failed to read message data: %w", err)
-	}
-
-	// Unmarshal message
-	msg, err := UnmarshalMessage(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal message: %w", err)
-	}
-
-	return msg, nil
+	return readMessageFromReader(reader)
 }

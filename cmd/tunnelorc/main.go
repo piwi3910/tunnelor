@@ -100,88 +100,88 @@ func setupLogging(verbose, pretty bool) {
 	})
 }
 
-// setupTCPForward creates and starts a TCP forward listener
-func setupTCPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*tcpbridge.TCPListener, error) {
-	targetAddr := fwd.Remote
-	streamOpener := func() (*quicgo.Stream, error) {
-		// Encode TCP metadata
-		metadata, err := mux.EncodeTCPMetadata(mux.TCPMetadata{
-			SourceAddr: fwd.Local,
-			TargetAddr: targetAddr,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode TCP metadata: %w", err)
-		}
+// forwardListener is a common interface for TCP and UDP listeners
+type forwardListener interface {
+	Start() error
+	Serve() error
+	Close() error
+}
 
-		// Open multiplexed stream
-		muxStream, err := multiplexer.OpenStream(mux.ProtocolTCP, metadata)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open TCP stream: %w", err)
-		}
-
-		return muxStream.Stream, nil
-	}
-
-	// Create TCP listener
-	listener := tcpbridge.NewTCPListener(fwd.Local, fwd.Remote, streamOpener)
+// setupForwardListener creates and starts a forward listener
+func setupForwardListener(listener forwardListener, protocol string, fwd config.ForwardConfig) error {
 	if err := listener.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start TCP listener: %w", err)
+		return fmt.Errorf("failed to start %s listener: %w", protocol, err)
 	}
 
 	// Start serving in background
-	go func(l *tcpbridge.TCPListener) {
-		if err := l.Serve(); err != nil {
-			log.Error().Err(err).Msg("TCP listener error")
+	go func() {
+		if err := listener.Serve(); err != nil {
+			log.Error().Err(err).Msgf("%s listener error", protocol)
 		}
-	}(listener)
+	}()
 
 	log.Info().
 		Str("local", fwd.Local).
 		Str("remote", fwd.Remote).
-		Msg("TCP forward established")
+		Msgf("%s forward established", protocol)
+
+	return nil
+}
+
+// createStreamOpener creates a stream opener function for the given protocol
+func createStreamOpener(fwd config.ForwardConfig, multiplexer *mux.Multiplexer, protocol mux.ProtocolID) func() (*quicgo.Stream, error) {
+	targetAddr := fwd.Remote
+	return func() (*quicgo.Stream, error) {
+		var metadata []byte
+		var err error
+
+		// Encode protocol-specific metadata
+		switch protocol {
+		case mux.ProtocolTCP:
+			metadata, err = mux.EncodeTCPMetadata(mux.TCPMetadata{
+				SourceAddr: fwd.Local,
+				TargetAddr: targetAddr,
+			})
+		case mux.ProtocolUDP:
+			metadata, err = mux.EncodeUDPMetadata(mux.UDPMetadata{
+				SourceAddr: fwd.Local,
+				TargetAddr: targetAddr,
+			})
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode %s metadata: %w", protocol.String(), err)
+		}
+
+		// Open multiplexed stream
+		muxStream, err := multiplexer.OpenStream(protocol, metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open %s stream: %w", protocol.String(), err)
+		}
+
+		return muxStream.Stream, nil
+	}
+}
+
+// setupTCPForward creates and starts a TCP forward listener
+func setupTCPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*tcpbridge.TCPListener, error) {
+	streamOpener := createStreamOpener(fwd, multiplexer, mux.ProtocolTCP)
+	listener := tcpbridge.NewTCPListener(fwd.Local, fwd.Remote, streamOpener)
+
+	if err := setupForwardListener(listener, "TCP", fwd); err != nil {
+		return nil, err
+	}
 
 	return listener, nil
 }
 
 // setupUDPForward creates and starts a UDP forward listener
 func setupUDPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*udpbridge.UDPListener, error) {
-	targetAddr := fwd.Remote
-	streamOpener := func() (*quicgo.Stream, error) {
-		// Encode UDP metadata
-		metadata, err := mux.EncodeUDPMetadata(mux.UDPMetadata{
-			SourceAddr: fwd.Local,
-			TargetAddr: targetAddr,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode UDP metadata: %w", err)
-		}
-
-		// Open multiplexed stream
-		muxStream, err := multiplexer.OpenStream(mux.ProtocolUDP, metadata)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open UDP stream: %w", err)
-		}
-
-		return muxStream.Stream, nil
-	}
-
-	// Create UDP listener
+	streamOpener := createStreamOpener(fwd, multiplexer, mux.ProtocolUDP)
 	listener := udpbridge.NewUDPListener(fwd.Local, fwd.Remote, streamOpener)
-	if err := listener.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start UDP listener: %w", err)
+
+	if err := setupForwardListener(listener, "UDP", fwd); err != nil {
+		return nil, err
 	}
-
-	// Start serving in background
-	go func(l *udpbridge.UDPListener) {
-		if err := l.Serve(); err != nil {
-			log.Error().Err(err).Msg("UDP listener error")
-		}
-	}(listener)
-
-	log.Info().
-		Str("local", fwd.Local).
-		Str("remote", fwd.Remote).
-		Msg("UDP forward established")
 
 	return listener, nil
 }
