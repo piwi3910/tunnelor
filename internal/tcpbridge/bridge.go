@@ -70,8 +70,16 @@ func BidirectionalCopy(conn1, conn2 io.ReadWriteCloser) error {
 
 // TCPToQUIC bridges a TCP connection to a QUIC stream
 func TCPToQUIC(tcpConn net.Conn, quicStream *quicgo.Stream) error {
-	defer tcpConn.Close()
-	defer (*quicStream).Close()
+	defer func() {
+		if err := tcpConn.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close TCP connection")
+		}
+	}()
+	defer func() {
+		if err := (*quicStream).Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close QUIC stream")
+		}
+	}()
 
 	log.Debug().
 		Str("local_addr", tcpConn.LocalAddr().String()).
@@ -93,7 +101,11 @@ func TCPToQUIC(tcpConn net.Conn, quicStream *quicgo.Stream) error {
 
 // QUICToTCP bridges a QUIC stream to a TCP connection
 func QUICToTCP(quicStream *quicgo.Stream, targetAddr string) error {
-	defer (*quicStream).Close()
+	defer func() {
+		if err := (*quicStream).Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close QUIC stream")
+		}
+	}()
 
 	log.Debug().
 		Str("target_addr", targetAddr).
@@ -105,7 +117,11 @@ func QUICToTCP(quicStream *quicgo.Stream, targetAddr string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to target %s: %w", targetAddr, err)
 	}
-	defer tcpConn.Close()
+	defer func() {
+		if err := tcpConn.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close TCP connection")
+		}
+	}()
 
 	log.Info().
 		Str("target_addr", targetAddr).
@@ -209,7 +225,9 @@ func (l *TCPListener) handleConnection(tcpConn net.Conn) {
 	quicStream, err := l.streamOpener()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to open QUIC stream")
-		tcpConn.Close()
+		if closeErr := tcpConn.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close TCP connection after stream open error")
+		}
 		return
 	}
 
