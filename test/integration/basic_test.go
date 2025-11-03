@@ -94,6 +94,65 @@ func generateTestCerts(t *testing.T) (certFile, keyFile string) {
 	return certFile, keyFile
 }
 
+// testEchoMessages tests sending and receiving echo messages through a multiplexed stream
+func testEchoMessages(t *testing.T, clientMux *mux.Multiplexer, protocol mux.ProtocolID, echoAddr string, messages []string) {
+	t.Helper()
+
+	for i, msg := range messages {
+		// Create metadata based on protocol
+		var metadata []byte
+		var err error
+
+		switch protocol {
+		case mux.ProtocolTCP:
+			metadata, err = mux.EncodeTCPMetadata(mux.TCPMetadata{
+				SourceAddr: "client",
+				TargetAddr: echoAddr,
+			})
+		case mux.ProtocolUDP:
+			metadata, err = mux.EncodeUDPMetadata(mux.UDPMetadata{
+				SourceAddr: "client",
+				TargetAddr: echoAddr,
+			})
+		default:
+			t.Fatalf("unsupported protocol: %s", protocol)
+		}
+
+		if err != nil {
+			t.Fatalf("Test %d: failed to encode metadata: %v", i+1, err)
+		}
+
+		// Open stream through multiplexer
+		muxStream, err := clientMux.OpenStream(protocol, metadata)
+		if err != nil {
+			t.Fatalf("Test %d: failed to open stream: %v", i+1, err)
+		}
+
+		// Send data
+		if _, err := muxStream.Stream.Write([]byte(msg)); err != nil {
+			t.Fatalf("Test %d: failed to write: %v", i+1, err)
+		}
+
+		// Read echo response
+		buf := make([]byte, len(msg))
+		if _, err := io.ReadFull(muxStream.Stream, buf); err != nil {
+			t.Fatalf("Test %d: failed to read: %v", i+1, err)
+		}
+
+		// Verify echo
+		if string(buf) != msg {
+			t.Fatalf("Test %d: data mismatch: got %q, want %q", i+1, buf, msg)
+		}
+
+		// Close stream
+		if err := muxStream.Stream.Close(); err != nil {
+			t.Logf("Test %d: warning closing stream: %v", i+1, err)
+		}
+
+		t.Logf("Test %d: ✅ %s", i+1, msg)
+	}
+}
+
 // TestBasicConnection tests basic QUIC connection establishment
 func TestBasicConnection(t *testing.T) {
 	// Setup quiet logging
@@ -669,43 +728,7 @@ func TestTCPForwarding(t *testing.T) {
 		"Final test message",
 	}
 
-	for i, msg := range testData {
-		// Create TCP metadata
-		metadata, err := mux.EncodeTCPMetadata(mux.TCPMetadata{
-			SourceAddr: "client",
-			TargetAddr: echoAddr,
-		})
-		if err != nil {
-			t.Fatalf("Test %d: failed to encode metadata: %v", i+1, err)
-		}
-
-		// Open stream through multiplexer
-		muxStream, err := clientMux.OpenStream(mux.ProtocolTCP, metadata)
-		if err != nil {
-			t.Fatalf("Test %d: failed to open stream: %v", i+1, err)
-		}
-
-		// Send data
-		if _, err := muxStream.Stream.Write([]byte(msg)); err != nil {
-			t.Fatalf("Test %d: failed to write: %v", i+1, err)
-		}
-
-		// Read echo response
-		buf := make([]byte, len(msg))
-		if _, err := io.ReadFull(muxStream.Stream, buf); err != nil {
-			t.Fatalf("Test %d: failed to read: %v", i+1, err)
-		}
-
-		// Verify echo
-		if string(buf) != msg {
-			t.Fatalf("Test %d: data mismatch: got %q, want %q", i+1, buf, msg)
-		}
-
-		// Close stream
-		muxStream.Stream.Close()
-
-		t.Logf("Test %d: ✅ %s", i+1, msg)
-	}
+	testEchoMessages(t, clientMux, mux.ProtocolTCP, echoAddr, testData)
 
 	t.Log("✅ TCP forwarding successful (3 messages echoed)")
 }
@@ -936,43 +959,7 @@ func TestUDPForwarding(t *testing.T) {
 		"UDP packet 3",
 	}
 
-	for i, msg := range testData {
-		// Create UDP metadata
-		metadata, err := mux.EncodeUDPMetadata(mux.UDPMetadata{
-			SourceAddr: "client",
-			TargetAddr: echoAddr,
-		})
-		if err != nil {
-			t.Fatalf("Test %d: failed to encode metadata: %v", i+1, err)
-		}
-
-		// Open stream through multiplexer
-		muxStream, err := clientMux.OpenStream(mux.ProtocolUDP, metadata)
-		if err != nil {
-			t.Fatalf("Test %d: failed to open stream: %v", i+1, err)
-		}
-
-		// Send UDP data
-		if _, err := muxStream.Stream.Write([]byte(msg)); err != nil {
-			t.Fatalf("Test %d: failed to write: %v", i+1, err)
-		}
-
-		// Read echo response
-		buf := make([]byte, len(msg))
-		if _, err := io.ReadFull(muxStream.Stream, buf); err != nil {
-			t.Fatalf("Test %d: failed to read: %v", i+1, err)
-		}
-
-		// Verify echo
-		if string(buf) != msg {
-			t.Fatalf("Test %d: data mismatch: got %q, want %q", i+1, buf, msg)
-		}
-
-		// Close stream
-		muxStream.Stream.Close()
-
-		t.Logf("Test %d: ✅ %s", i+1, msg)
-	}
+	testEchoMessages(t, clientMux, mux.ProtocolUDP, echoAddr, testData)
 
 	t.Log("✅ UDP forwarding successful (3 datagrams echoed)")
 }
