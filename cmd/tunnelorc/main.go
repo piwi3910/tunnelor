@@ -110,15 +110,18 @@ type forwardListener interface {
 }
 
 // setupForwardListener creates and starts a forward listener
-func setupForwardListener(listener forwardListener, protocol string, fwd config.ForwardConfig) error {
+// Returns an error channel that will receive any serve errors
+func setupForwardListener(listener forwardListener, protocol string, fwd config.ForwardConfig) (<-chan error, error) {
 	if err := listener.Start(); err != nil {
-		return fmt.Errorf("failed to start %s listener: %w", protocol, err)
+		return nil, fmt.Errorf("failed to start %s listener: %w", protocol, err)
 	}
 
-	// Start serving in background
+	// Start serving in background with error channel
+	errChan := make(chan error, 1)
 	go func() {
 		if err := listener.Serve(); err != nil {
 			log.Error().Err(err).Msgf("%s listener error", protocol)
+			errChan <- fmt.Errorf("%s listener failed: %w", protocol, err)
 		}
 	}()
 
@@ -127,7 +130,7 @@ func setupForwardListener(listener forwardListener, protocol string, fwd config.
 		Str("remote", fwd.Remote).
 		Msgf("%s forward established", protocol)
 
-	return nil
+	return errChan, nil
 }
 
 // createStreamOpener creates a stream opener function for the given protocol
@@ -165,27 +168,29 @@ func createStreamOpener(fwd config.ForwardConfig, multiplexer *mux.Multiplexer, 
 }
 
 // setupTCPForward creates and starts a TCP forward listener
-func setupTCPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*tcpbridge.TCPListener, error) {
+func setupTCPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*tcpbridge.TCPListener, <-chan error, error) {
 	streamOpener := createStreamOpener(fwd, multiplexer, mux.ProtocolTCP)
 	listener := tcpbridge.NewTCPListener(fwd.Local, fwd.Remote, streamOpener)
 
-	if err := setupForwardListener(listener, "TCP", fwd); err != nil {
-		return nil, err
+	errChan, err := setupForwardListener(listener, "TCP", fwd)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return listener, nil
+	return listener, errChan, nil
 }
 
 // setupUDPForward creates and starts a UDP forward listener
-func setupUDPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*udpbridge.UDPListener, error) {
+func setupUDPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*udpbridge.UDPListener, <-chan error, error) {
 	streamOpener := createStreamOpener(fwd, multiplexer, mux.ProtocolUDP)
 	listener := udpbridge.NewUDPListener(fwd.Local, fwd.Remote, streamOpener)
 
-	if err := setupForwardListener(listener, "UDP", fwd); err != nil {
-		return nil, err
+	errChan, err := setupForwardListener(listener, "UDP", fwd)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return listener, nil
+	return listener, errChan, nil
 }
 
 func runConnect(_ *cobra.Command, _ []string) error {
@@ -274,31 +279,44 @@ func runConnect(_ *cobra.Command, _ []string) error {
 	// Start TCP and UDP forwards
 	var tcpListeners []*tcpbridge.TCPListener
 	var udpListeners []*udpbridge.UDPListener
+	var forwardErrChans []<-chan error
 
 	// Setup all forwards before starting to serve
 	setupSuccess := true
 	for _, fwd := range cfg.Forwards {
 		if fwd.Proto == "tcp" {
-			listener, err := setupTCPForward(fwd, multiplexer)
+			listener, errChan, err := setupTCPForward(fwd, multiplexer)
 			if err != nil {
 				log.Error().Err(err).Str("local", fwd.Local).Msg("Failed to start TCP forward")
 				setupSuccess = false
 				break
 			}
 			tcpListeners = append(tcpListeners, listener)
+			forwardErrChans = append(forwardErrChans, errChan)
 		} else if fwd.Proto == "udp" {
-			listener, err := setupUDPForward(fwd, multiplexer)
+			listener, errChan, err := setupUDPForward(fwd, multiplexer)
 			if err != nil {
 				log.Error().Err(err).Str("local", fwd.Local).Msg("Failed to start UDP forward")
 				setupSuccess = false
 				break
 			}
 			udpListeners = append(udpListeners, listener)
+			forwardErrChans = append(forwardErrChans, errChan)
 		}
 	}
 
 	if !setupSuccess {
 		return fmt.Errorf("failed to setup forwards")
+	}
+
+	// Merge all error channels into one
+	forwardErrors := make(chan error, len(forwardErrChans))
+	for _, errChan := range forwardErrChans {
+		go func(ch <-chan error) {
+			if err := <-ch; err != nil {
+				forwardErrors <- err
+			}
+		}(errChan)
 	}
 
 	// Clean up listeners on exit
@@ -317,10 +335,17 @@ func runConnect(_ *cobra.Command, _ []string) error {
 
 	log.Info().Msg("Tunnelorc client ready")
 
-	// Wait for shutdown signal
+	// Wait for shutdown signal or critical error
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	<-sigChan
+
+	select {
+	case sig := <-sigChan:
+		log.Info().Str("signal", sig.String()).Msg("Shutdown signal received")
+	case err := <-forwardErrors:
+		log.Error().Err(err).Msg("Critical forward error - shutting down")
+		return fmt.Errorf("forward error: %w", err)
+	}
 
 	log.Info().Msg("Shutting down Tunnelorc client...")
 	return nil
