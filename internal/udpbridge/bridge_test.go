@@ -292,7 +292,9 @@ func TestDatagramWithVariousDataPatterns(t *testing.T) {
 			}
 
 			var buf bytes.Buffer
-			WriteUDPDatagram(&buf, datagram)
+			if err := WriteUDPDatagram(&buf, datagram); err != nil {
+				t.Fatalf("WriteUDPDatagram() error = %v", err)
+			}
 			dg2, err := ReadUDPDatagram(&buf)
 
 			if err != nil {
@@ -319,7 +321,7 @@ func BenchmarkWriteUDPDatagram(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		buf.Reset()
-		WriteUDPDatagram(&buf, datagram)
+		_ = WriteUDPDatagram(&buf, datagram)
 	}
 }
 
@@ -332,12 +334,12 @@ func BenchmarkReadUDPDatagram(b *testing.B) {
 
 	var buf bytes.Buffer
 	for i := 0; i < b.N; i++ {
-		WriteUDPDatagram(&buf, datagram)
+		_ = WriteUDPDatagram(&buf, datagram)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf2 := bytes.NewBuffer(buf.Bytes())
-		ReadUDPDatagram(buf2)
+		_, _ = ReadUDPDatagram(buf2)
 	}
 }
