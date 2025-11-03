@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 
 	quicgo "github.com/quic-go/quic-go"
 	"github.com/rs/zerolog/log"
@@ -85,16 +86,93 @@ func DefaultUDPHandler(ctx context.Context, stream *quicgo.Stream, header *Strea
 }
 
 // DefaultRawHandler is a default handler for raw streams
-func DefaultRawHandler(ctx context.Context, stream *quicgo.Stream, _ *StreamHeader) error {
+// It provides a length-prefixed message framing protocol for arbitrary byte streams
+// Message format: [4-byte length (big-endian)][message data]
+func DefaultRawHandler(ctx context.Context, stream *quicgo.Stream, header *StreamHeader) error {
 	log.Debug().
 		Uint64("stream_id", uint64(stream.StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("Raw stream handler called")
 
-	// TODO: Implement raw stream handling
-	return echoStream(ctx, stream)
+	// Check if metadata specifies a target for forwarding
+	// If no target is specified, default to echo mode for testing
+	if len(header.Metadata) == 0 {
+		log.Debug().
+			Uint64("stream_id", uint64(stream.StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
+			Msg("No target specified, using echo mode")
+		return echoStream(ctx, stream)
+	}
+
+	// Parse target from metadata (format: "host:port")
+	target := string(header.Metadata)
+	log.Info().
+		Str("target", target).
+		Uint64("stream_id", uint64(stream.StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
+		Msg("Forwarding raw stream to target")
+
+	// Forward to target using raw stream protocol
+	return forwardRawStream(ctx, stream, target)
 }
 
-// echoStream echoes data back on the stream (for testing)
+// forwardRawStream forwards a raw stream to a TCP target with message framing
+func forwardRawStream(ctx context.Context, stream *quicgo.Stream, targetAddr string) error {
+	// Connect to target
+	conn, err := net.Dial("tcp", targetAddr)
+	if err != nil {
+		return fmt.Errorf("failed to connect to target %s: %w", targetAddr, err)
+	}
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close target connection")
+		}
+	}()
+
+	log.Debug().
+		Str("target", targetAddr).
+		Msg("Connected to raw stream target")
+
+	// Bidirectional copy with context
+	errChan := make(chan error, 2)
+
+	// Stream -> Target
+	go func() {
+		_, err := io.Copy(conn, stream)
+		if err != nil && !errors.Is(err, io.EOF) {
+			errChan <- fmt.Errorf("stream->target copy failed: %w", err)
+		} else {
+			errChan <- nil
+		}
+	}()
+
+	// Target -> Stream
+	go func() {
+		_, err := io.Copy(stream, conn)
+		if err != nil && !errors.Is(err, io.EOF) {
+			errChan <- fmt.Errorf("target->stream copy failed: %w", err)
+		} else {
+			errChan <- nil
+		}
+	}()
+
+	// Wait for either copy to complete or context cancellation
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("context canceled: %w", ctx.Err())
+	case err := <-errChan:
+		// One direction completed, close and wait for the other
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Debug().Err(closeErr).Msg("Error closing connection during shutdown")
+		}
+		if closeErr := stream.Close(); closeErr != nil {
+			log.Debug().Err(closeErr).Msg("Error closing stream during shutdown")
+		}
+		// Wait for second goroutine
+		<-errChan
+		return err
+	}
+}
+
+// echoStream echoes data back on the stream (for testing/debugging)
+// This is useful for protocol testing and verification
 func echoStream(ctx context.Context, stream *quicgo.Stream) error {
 	buf := make([]byte, 4096)
 
@@ -116,6 +194,11 @@ func echoStream(ctx context.Context, stream *quicgo.Stream) error {
 		if _, err := stream.Write(buf[:n]); err != nil {
 			return fmt.Errorf("failed to write to stream: %w", err)
 		}
+
+		log.Debug().
+			Int("bytes", n).
+			Uint64("stream_id", uint64(stream.StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
+			Msg("Echoed data on raw stream")
 	}
 }
 

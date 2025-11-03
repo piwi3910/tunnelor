@@ -243,6 +243,8 @@ func (l *UDPListener) Start() error {
 }
 
 // Serve receives and forwards UDP datagrams
+// Returns an error if the read loop encounters a fatal error
+// Individual datagram handling errors are logged but don't stop the listener
 func (l *UDPListener) Serve() error {
 	// Get buffer from pool
 	bufferPtr := bufferPool.Get().(*[]byte)
@@ -262,8 +264,10 @@ func (l *UDPListener) Serve() error {
 		// Read UDP datagram
 		n, remoteAddr, err := l.conn.ReadFromUDP(buffer)
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to read UDP datagram")
-			continue
+			// Log the error and return it - persistent read errors indicate
+			// a fatal problem with the listener
+			log.Error().Err(err).Msg("Fatal error reading UDP datagram")
+			return fmt.Errorf("failed to read UDP datagram: %w", err)
 		}
 
 		// Copy data since we need to pass it to goroutine and buffer will be reused

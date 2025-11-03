@@ -45,14 +45,24 @@ type ForwardConfig struct {
 	Proto  string `mapstructure:"proto"`
 }
 
-// LoadServerConfig loads server configuration from the specified file
-func LoadServerConfig(configPath string) (*ServerConfig, error) {
+// loadConfig is a generic config loader that handles the common Viper operations
+func loadConfig(configPath string, configType string) (*viper.Viper, error) {
 	v := viper.New()
 	v.SetConfigFile(configPath)
-	v.SetConfigType("yaml")
+	v.SetConfigType(configType)
 
 	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read server config: %w", err)
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	return v, nil
+}
+
+// LoadServerConfig loads server configuration from the specified file
+func LoadServerConfig(configPath string) (*ServerConfig, error) {
+	v, err := loadConfig(configPath, "yaml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load server config: %w", err)
 	}
 
 	var cfg ServerConfig
@@ -75,12 +85,9 @@ func LoadServerConfig(configPath string) (*ServerConfig, error) {
 
 // LoadClientConfig loads client configuration from the specified file
 func LoadClientConfig(configPath string) (*ClientConfig, error) {
-	v := viper.New()
-	v.SetConfigFile(configPath)
-	v.SetConfigType("yaml")
-
-	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read client config: %w", err)
+	v, err := loadConfig(configPath, "yaml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load client config: %w", err)
 	}
 
 	var cfg ClientConfig

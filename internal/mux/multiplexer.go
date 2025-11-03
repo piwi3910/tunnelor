@@ -157,6 +157,8 @@ func (m *Multiplexer) HandleStream(muxStream *Stream) error {
 }
 
 // ServeStreams accepts and handles incoming streams
+// Returns an error if the accept loop encounters a fatal error
+// Individual stream handling errors are logged but don't stop the server
 func (m *Multiplexer) ServeStreams() error {
 	for {
 		// Accept stream
@@ -167,8 +169,10 @@ func (m *Multiplexer) ServeStreams() error {
 			case <-m.ctx.Done():
 				return nil
 			default:
-				log.Error().Err(err).Msg("Failed to accept stream")
-				continue
+				// Log the error and return it - this is a fatal accept error
+				// that indicates the connection is no longer accepting streams
+				log.Error().Err(err).Msg("Fatal error accepting stream")
+				return fmt.Errorf("failed to accept stream: %w", err)
 			}
 		}
 

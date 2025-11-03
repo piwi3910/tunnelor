@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	quicgo "github.com/quic-go/quic-go"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/piwi3910/tunnelor/internal/config"
 	"github.com/piwi3910/tunnelor/internal/control"
+	"github.com/piwi3910/tunnelor/internal/ipc"
 	"github.com/piwi3910/tunnelor/internal/logger"
 	"github.com/piwi3910/tunnelor/internal/mux"
 	"github.com/piwi3910/tunnelor/internal/quic"
@@ -88,12 +90,82 @@ func main() {
 	}
 }
 
-
 // forwardListener is a common interface for TCP and UDP listeners
 type forwardListener interface {
 	Start() error
 	Serve() error
 	Close() error
+}
+
+// clientState holds the runtime state needed for dynamic forwarding
+type clientState struct {
+	multiplexer   *mux.Multiplexer
+	tcpListeners  []*tcpbridge.TCPListener
+	udpListeners  []*udpbridge.UDPListener
+	forwardErrors chan error
+	mu            sync.Mutex
+}
+
+// addForward dynamically adds a new forward to the running client
+func (s *clientState) addForward(req ipc.ForwardRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate protocol
+	if req.Proto != "tcp" && req.Proto != "udp" {
+		return fmt.Errorf("protocol must be 'tcp' or 'udp', got '%s'", req.Proto)
+	}
+
+	// Create forward config
+	fwd := config.ForwardConfig{
+		Local:  req.Local,
+		Remote: req.Remote,
+		Proto:  req.Proto,
+	}
+
+	log.Info().
+		Str("local", fwd.Local).
+		Str("remote", fwd.Remote).
+		Str("proto", fwd.Proto).
+		Msg("Adding dynamic forward")
+
+	// Setup forward based on protocol
+	if fwd.Proto == "tcp" {
+		listener, errChan, err := setupTCPForward(fwd, s.multiplexer)
+		if err != nil {
+			return fmt.Errorf("failed to setup TCP forward: %w", err)
+		}
+		s.tcpListeners = append(s.tcpListeners, listener)
+
+		// Monitor errors
+		go func(ch <-chan error) {
+			if err := <-ch; err != nil {
+				s.forwardErrors <- err
+			}
+		}(errChan)
+
+	} else if fwd.Proto == "udp" {
+		listener, errChan, err := setupUDPForward(fwd, s.multiplexer)
+		if err != nil {
+			return fmt.Errorf("failed to setup UDP forward: %w", err)
+		}
+		s.udpListeners = append(s.udpListeners, listener)
+
+		// Monitor errors
+		go func(ch <-chan error) {
+			if err := <-ch; err != nil {
+				s.forwardErrors <- err
+			}
+		}(errChan)
+	}
+
+	log.Info().
+		Str("local", fwd.Local).
+		Str("remote", fwd.Remote).
+		Str("proto", fwd.Proto).
+		Msg("Dynamic forward added successfully")
+
+	return nil
 }
 
 // setupForwardListener creates and starts a forward listener
@@ -263,12 +335,16 @@ func runConnect(_ *cobra.Command, _ []string) error {
 	// Register default handlers (for responses from server)
 	mux.RegisterDefaultHandlers(multiplexer)
 
-	// Start TCP and UDP forwards
-	var tcpListeners []*tcpbridge.TCPListener
-	var udpListeners []*udpbridge.UDPListener
-	var forwardErrChans []<-chan error
+	// Create client state for dynamic forwarding
+	state := &clientState{
+		multiplexer:   multiplexer,
+		tcpListeners:  make([]*tcpbridge.TCPListener, 0),
+		udpListeners:  make([]*udpbridge.UDPListener, 0),
+		forwardErrors: make(chan error, 10),
+	}
 
-	// Setup all forwards before starting to serve
+	// Setup initial forwards from config
+	var forwardErrChans []<-chan error
 	setupSuccess := true
 	for _, fwd := range cfg.Forwards {
 		if fwd.Proto == "tcp" {
@@ -278,7 +354,7 @@ func runConnect(_ *cobra.Command, _ []string) error {
 				setupSuccess = false
 				break
 			}
-			tcpListeners = append(tcpListeners, listener)
+			state.tcpListeners = append(state.tcpListeners, listener)
 			forwardErrChans = append(forwardErrChans, errChan)
 		} else if fwd.Proto == "udp" {
 			listener, errChan, err := setupUDPForward(fwd, multiplexer)
@@ -287,7 +363,7 @@ func runConnect(_ *cobra.Command, _ []string) error {
 				setupSuccess = false
 				break
 			}
-			udpListeners = append(udpListeners, listener)
+			state.udpListeners = append(state.udpListeners, listener)
 			forwardErrChans = append(forwardErrChans, errChan)
 		}
 	}
@@ -296,24 +372,42 @@ func runConnect(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to setup forwards")
 	}
 
-	// Merge all error channels into one
-	forwardErrors := make(chan error, len(forwardErrChans))
+	// Merge all error channels into state's error channel
 	for _, errChan := range forwardErrChans {
 		go func(ch <-chan error) {
 			if err := <-ch; err != nil {
-				forwardErrors <- err
+				state.forwardErrors <- err
 			}
 		}(errChan)
 	}
 
+	// Start IPC server for dynamic forwarding
+	ipcServer, err := ipc.NewServer(state.addForward)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to start IPC server - dynamic forwarding will not be available")
+	} else {
+		defer func() {
+			if err := ipcServer.Close(); err != nil {
+				log.Warn().Err(err).Msg("Failed to close IPC server")
+			}
+		}()
+
+		// Start IPC server in background
+		go func() {
+			if err := ipcServer.Serve(); err != nil {
+				log.Error().Err(err).Msg("IPC server error")
+			}
+		}()
+	}
+
 	// Clean up listeners on exit
 	defer func() {
-		for _, l := range tcpListeners {
+		for _, l := range state.tcpListeners {
 			if err := l.Close(); err != nil {
 				log.Warn().Err(err).Msg("Failed to close TCP listener")
 			}
 		}
-		for _, l := range udpListeners {
+		for _, l := range state.udpListeners {
 			if err := l.Close(); err != nil {
 				log.Warn().Err(err).Msg("Failed to close UDP listener")
 			}
@@ -329,7 +423,7 @@ func runConnect(_ *cobra.Command, _ []string) error {
 	select {
 	case sig := <-sigChan:
 		log.Info().Str("signal", sig.String()).Msg("Shutdown signal received")
-	case err := <-forwardErrors:
+	case err := <-state.forwardErrors:
 		log.Error().Err(err).Msg("Critical forward error - shutting down")
 		return fmt.Errorf("forward error: %w", err)
 	}
@@ -353,6 +447,23 @@ func runForward(_ *cobra.Command, _ []string) {
 		log.Fatal().Str("proto", fwdProto).Msg("Protocol must be 'tcp' or 'udp'")
 	}
 
-	// TODO: Add forward to running client
-	log.Info().Msg("Forward added successfully")
+	// Create forward request
+	req := ipc.ForwardRequest{
+		Local:  fwdLocal,
+		Remote: fwdRemote,
+		Proto:  fwdProto,
+	}
+
+	// Send request to running client via IPC
+	resp, err := ipc.SendForwardRequest(req)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to send forward request")
+	}
+
+	// Check response
+	if !resp.Success {
+		log.Fatal().Str("error", resp.Error).Msg("Forward request failed")
+	}
+
+	log.Info().Str("message", resp.Message).Msg("Forward added successfully")
 }

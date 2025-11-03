@@ -213,6 +213,8 @@ func (l *TCPListener) Start() error {
 }
 
 // Serve accepts and handles TCP connections
+// Returns an error if the accept loop encounters a fatal error
+// Individual connection handling errors are logged but don't stop the listener
 func (l *TCPListener) Serve() error {
 	for {
 		tcpConn, err := l.listener.Accept()
@@ -221,8 +223,10 @@ func (l *TCPListener) Serve() error {
 			case <-l.ctx.Done():
 				return nil
 			default:
-				log.Error().Err(err).Msg("Failed to accept TCP connection")
-				continue
+				// Log the error and return it - persistent accept errors indicate
+				// a fatal problem with the listener
+				log.Error().Err(err).Msg("Fatal error accepting TCP connection")
+				return fmt.Errorf("failed to accept TCP connection: %w", err)
 			}
 		}
 
