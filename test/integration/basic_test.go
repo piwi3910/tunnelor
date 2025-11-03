@@ -380,15 +380,17 @@ func TestStreamMultiplexing(t *testing.T) {
 	serverMux := mux.NewMultiplexer(serverConn)
 
 	// Register echo handler on server
-	serverMux.RegisterHandler(mux.ProtocolRaw, func(ctx context.Context, stream *quicgo.Stream, header *mux.StreamHeader) error {
+	serverMux.RegisterHandler(mux.ProtocolRaw, func(_ context.Context, stream *quicgo.Stream, _ *mux.StreamHeader) error {
 		// Echo back whatever is sent
 		buf := make([]byte, 1024)
 		n, err := stream.Read(buf)
 		if err != nil && err != io.EOF {
-			return err
+			return fmt.Errorf("stream read error: %w", err)
 		}
-		_, err = stream.Write(buf[:n])
-		return err
+		if _, err = stream.Write(buf[:n]); err != nil {
+			return fmt.Errorf("stream write error: %w", err)
+		}
+		return nil
 	})
 
 	// Server accepts streams
