@@ -88,19 +88,6 @@ func main() {
 	}
 }
 
-// setupLogging configures the logger based on verbosity flags
-func setupLogging(verbose, pretty bool) {
-	logLevel := logger.InfoLevel
-	if verbose {
-		logLevel = logger.DebugLevel
-	}
-
-	logger.Setup(logger.Config{
-		Level:      logLevel,
-		Pretty:     pretty,
-		TimeFormat: "2006-01-02T15:04:05.000Z07:00",
-	})
-}
 
 // forwardListener is a common interface for TCP and UDP listeners
 type forwardListener interface {
@@ -195,7 +182,7 @@ func setupUDPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*u
 
 func runConnect(_ *cobra.Command, _ []string) error {
 	// Setup logging
-	setupLogging(verbose, pretty)
+	logger.SetupFromFlags(verbose, pretty)
 
 	log.Info().Msg("Starting Tunnelorc client...")
 
@@ -353,16 +340,7 @@ func runConnect(_ *cobra.Command, _ []string) error {
 
 func runForward(_ *cobra.Command, _ []string) {
 	// Setup logging
-	logLevel := logger.InfoLevel
-	if verbose {
-		logLevel = logger.DebugLevel
-	}
-
-	logger.Setup(logger.Config{
-		Level:      logLevel,
-		Pretty:     pretty,
-		TimeFormat: "2006-01-02T15:04:05.000Z07:00",
-	})
+	logger.SetupFromFlags(verbose, pretty)
 
 	log.Info().
 		Str("local", fwdLocal).

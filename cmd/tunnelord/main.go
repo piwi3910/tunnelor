@@ -51,16 +51,7 @@ func main() {
 
 func runServer(_ *cobra.Command, _ []string) {
 	// Setup logging
-	logLevel := logger.InfoLevel
-	if verbose {
-		logLevel = logger.DebugLevel
-	}
-
-	logger.Setup(logger.Config{
-		Level:      logLevel,
-		Pretty:     pretty,
-		TimeFormat: "2006-01-02T15:04:05.000Z07:00",
-	})
+	logger.SetupFromFlags(verbose, pretty)
 
 	log.Info().Msg("Starting Tunnelord server...")
 

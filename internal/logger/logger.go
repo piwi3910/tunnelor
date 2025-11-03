@@ -38,6 +38,25 @@ func DefaultConfig() Config {
 	}
 }
 
+// ConfigFromFlags creates a logger config from common command-line flags
+func ConfigFromFlags(verbose, pretty bool) Config {
+	level := InfoLevel
+	if verbose {
+		level = DebugLevel
+	}
+
+	return Config{
+		Level:      level,
+		Pretty:     pretty,
+		TimeFormat: "2006-01-02T15:04:05.000Z07:00",
+	}
+}
+
+// SetupFromFlags is a convenience function to setup logging from command-line flags
+func SetupFromFlags(verbose, pretty bool) {
+	Setup(ConfigFromFlags(verbose, pretty))
+}
+
 // Setup initializes the global logger with the given configuration
 func Setup(cfg Config) {
 	// Set global log level
