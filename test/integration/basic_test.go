@@ -73,7 +73,7 @@ func generateTestCerts(t *testing.T) (certFile, keyFile string) {
 	if err != nil {
 		t.Fatalf("Failed to create cert file: %v", err)
 	}
-	defer certOut.Close()
+	defer func() { _ = certOut.Close() }()
 	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
 		t.Fatalf("Failed to encode certificate: %v", err)
 	}
@@ -83,7 +83,7 @@ func generateTestCerts(t *testing.T) (certFile, keyFile string) {
 	if err != nil {
 		t.Fatalf("Failed to create key file: %v", err)
 	}
-	defer keyOut.Close()
+	defer func() { _ = keyOut.Close() }()
 	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
 		t.Fatalf("Failed to marshal private key: %v", err)
@@ -134,7 +134,9 @@ func acceptAndHandleStreams(serverConn *quic.Connection, serverMux *mux.Multiple
 				Stream:   stream,
 				Header:   header,
 			}
-			go serverMux.HandleStream(muxStream)
+			go func(ms *mux.Stream) {
+			_ = serverMux.HandleStream(ms)
+		}(muxStream)
 		}
 	}()
 }
@@ -237,7 +239,7 @@ func TestBasicConnection(t *testing.T) {
 	default:
 	}
 
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	// Get actual server address
 	serverAddr := server.Addr().String()
@@ -251,7 +253,7 @@ func TestBasicConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Connect to server
 	if err := client.Connect(); err != nil {
@@ -300,7 +302,7 @@ func TestAuthentication(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 		// Server started successfully (Start is blocking)
 	}
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	// Get actual server address
 	serverAddr := server.Addr().String()
@@ -332,7 +334,7 @@ func TestAuthentication(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if err := client.Connect(); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
@@ -421,7 +423,7 @@ func TestStreamMultiplexing(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 		// Server started successfully
 	}
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	// Get actual server address
 	serverAddr := server.Addr().String()
@@ -450,7 +452,7 @@ func TestStreamMultiplexing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if err := client.Connect(); err != nil {
 		t.Fatalf("Failed to connect: %v", err)
@@ -470,7 +472,7 @@ func TestStreamMultiplexing(t *testing.T) {
 
 	go func() {
 		stream, _ := serverConn.AcceptStream()
-		serverHandler.HandleControlStream(stream)
+		_ = serverHandler.HandleControlStream(stream)
 	}()
 
 	if err := clientHandler.Authenticate(); err != nil {
@@ -526,7 +528,9 @@ func TestStreamMultiplexing(t *testing.T) {
 				Stream:   stream,
 				Header:   header,
 			}
-			go serverMux.HandleStream(muxStream)
+			go func(ms *mux.Stream) {
+			_ = serverMux.HandleStream(ms)
+		}(muxStream)
 		}
 	}()
 
@@ -579,7 +583,7 @@ func TestTCPForwarding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create echo server: %v", err)
 	}
-	defer echoListener.Close()
+	defer func() { _ = echoListener.Close() }()
 
 	echoAddr := echoListener.Addr().String()
 	t.Logf("Echo server listening on %s", echoAddr)
@@ -592,7 +596,7 @@ func TestTCPForwarding(t *testing.T) {
 				return
 			}
 			go func(c net.Conn) {
-				defer c.Close()
+				defer func() { _ = c.Close() }()
 				buf := make([]byte, 4096)
 				for {
 					n, err := c.Read(buf)
@@ -629,7 +633,7 @@ func TestTCPForwarding(t *testing.T) {
 		}
 	case <-time.After(500 * time.Millisecond):
 	}
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	serverAddr := server.Addr().String()
 	t.Logf("QUIC server listening on %s", serverAddr)
@@ -657,7 +661,7 @@ func TestTCPForwarding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create QUIC client: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if err := client.Connect(); err != nil {
 		t.Fatalf("Failed to connect QUIC client: %v", err)
@@ -677,7 +681,7 @@ func TestTCPForwarding(t *testing.T) {
 
 	go func() {
 		stream, _ := serverConn.AcceptStream()
-		serverHandler.HandleControlStream(stream)
+		_ = serverHandler.HandleControlStream(stream)
 	}()
 
 	if err := clientHandler.Authenticate(); err != nil {
@@ -705,7 +709,7 @@ func TestTCPForwarding(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("failed to connect to target: %w", err)
 		}
-		defer targetConn.Close()
+		defer func() { _ = targetConn.Close() }()
 
 		// Bidirectional copy
 		errChan := make(chan error, 2)
@@ -753,7 +757,7 @@ func TestUDPForwarding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create UDP echo server: %v", err)
 	}
-	defer echoConn.Close()
+	defer func() { _ = echoConn.Close() }()
 
 	echoAddr := echoConn.LocalAddr().String()
 	t.Logf("UDP echo server listening on %s", echoAddr)
@@ -795,7 +799,7 @@ func TestUDPForwarding(t *testing.T) {
 		}
 	case <-time.After(500 * time.Millisecond):
 	}
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	serverAddr := server.Addr().String()
 	t.Logf("QUIC server listening on %s", serverAddr)
@@ -823,7 +827,7 @@ func TestUDPForwarding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create QUIC client: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if err := client.Connect(); err != nil {
 		t.Fatalf("Failed to connect QUIC client: %v", err)
@@ -843,7 +847,7 @@ func TestUDPForwarding(t *testing.T) {
 
 	go func() {
 		stream, _ := serverConn.AcceptStream()
-		serverHandler.HandleControlStream(stream)
+		_ = serverHandler.HandleControlStream(stream)
 	}()
 
 	if err := clientHandler.Authenticate(); err != nil {
@@ -876,7 +880,7 @@ func TestUDPForwarding(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("failed to dial UDP target: %w", err)
 		}
-		defer udpConn.Close()
+		defer func() { _ = udpConn.Close() }()
 
 		// Bidirectional forwarding between QUIC stream and UDP
 		errChan := make(chan error, 2)
