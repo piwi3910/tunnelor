@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
@@ -29,9 +31,6 @@ linters-settings:
 
   lll:
     line-length: 140
-
-  goimports:
-    local-prefixes: github.com/piwi3910/tunnelor
 
   gocritic:
     enabled-tags:
@@ -80,41 +79,30 @@ linters-settings:
       - name: redefines-builtin-id
 
 linters:
-  disable-all: true
   enable:
-    # Default linters
-    - errcheck      # Check for unchecked errors
-    - gosimple      # Simplify code
-    - govet         # Vet examines Go source code
-    - ineffassign   # Detect ineffectual assignments
-    - staticcheck   # Advanced static analysis
-    - typecheck     # Type checking
-    - unused        # Detect unused code
+    # Default linters (enabled by default)
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
 
-    # Additional recommended linters
-    - bodyclose     # Check HTTP response body is closed
-    - dupl          # Detect code cloning
-    - gocyclo       # Cyclomatic complexity
-    - gofmt         # Gofmt checks formatting
-    - goimports     # Check import statements
-    - gosec         # Security problems
-    - misspell      # Spelling mistakes
-    - revive        # Drop-in replacement for golint
-    - unconvert     # Unnecessary type conversions
-    - unparam       # Unused function parameters
-    - whitespace    # Detect leading/trailing whitespace
-
-    # Style linters
-    - goconst       # Repeated strings that could be constants
-    - gocritic      # Opinionated linter
-    - nolintlint    # Ill-formed nolint directives
-
-    # Error handling
-    - errorlint     # Error wrapping issues
-    - wrapcheck     # Check error wrapping
-
-    # Performance
-    - prealloc      # Preallocate slices
+    # Additional linters
+    - bodyclose
+    - dupl
+    - gocyclo
+    - gosec
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+    - whitespace
+    - goconst
+    - gocritic
+    - nolintlint
+    - errorlint
+    - wrapcheck
+    - prealloc
 
 issues:
   exclude-rules:
