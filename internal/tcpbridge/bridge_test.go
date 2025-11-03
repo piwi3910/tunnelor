@@ -99,9 +99,12 @@ func (p *pipeReadWriteCloser) Close() error {
 	err1 := p.ReadCloser.Close()
 	err2 := p.WriteCloser.Close()
 	if err1 != nil {
-		return err1
+		return fmt.Errorf("failed to close reader: %w", err1)
 	}
-	return err2
+	if err2 != nil {
+		return fmt.Errorf("failed to close writer: %w", err2)
+	}
+	return nil
 }
 
 // TestBidirectionalCopyLargeData tests copying large amounts of data
