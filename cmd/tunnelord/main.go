@@ -13,6 +13,7 @@ import (
 	"github.com/piwi3910/tunnelor/internal/logger"
 	"github.com/piwi3910/tunnelor/internal/mux"
 	"github.com/piwi3910/tunnelor/internal/quic"
+	"github.com/piwi3910/tunnelor/internal/server"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -97,6 +98,18 @@ func runServer(_ *cobra.Command, _ []string) {
 
 	// TODO: Start metrics server
 
+	// Create connection manager with configured limits
+	connMgr := server.NewConnectionManager(cfg.MaxConnectionsPerClient, cfg.MaxTotalConnections)
+
+	if cfg.MaxConnectionsPerClient > 0 || cfg.MaxTotalConnections > 0 {
+		log.Info().
+			Int("max_per_client", cfg.MaxConnectionsPerClient).
+			Int("max_total", cfg.MaxTotalConnections).
+			Msg("Connection limits enabled")
+	} else {
+		log.Info().Msg("No connection limits configured (unlimited)")
+	}
+
 	log.Info().Msg("Tunnelord server started successfully")
 
 	// Start accepting connections in background
@@ -109,7 +122,7 @@ func runServer(_ *cobra.Command, _ []string) {
 			}
 
 			// Handle connection in goroutine
-			go handleConnection(conn, cfg.Auth.PSKMap)
+			go handleConnection(conn, cfg.Auth.PSKMap, connMgr)
 		}
 	}()
 
@@ -121,7 +134,7 @@ func runServer(_ *cobra.Command, _ []string) {
 	log.Info().Msg("Shutting down Tunnelord server...")
 }
 
-func handleConnection(conn *quic.Connection, pskMap map[string]string) {
+func handleConnection(conn *quic.Connection, pskMap map[string]string, connMgr *server.ConnectionManager) {
 	log.Info().
 		Str("remote_addr", conn.RemoteAddr()).
 		Str("local_addr", conn.LocalAddr()).
@@ -151,6 +164,26 @@ func handleConnection(conn *quic.Connection, pskMap map[string]string) {
 		}
 		return
 	}
+
+	// Get authenticated client ID
+	clientID := controlHandler.GetClientID()
+
+	// Check if connection can be accepted (after authentication to know client ID)
+	if err := connMgr.CanAccept(clientID); err != nil {
+		log.Warn().
+			Err(err).
+			Str("client_id", clientID).
+			Str("remote_addr", conn.RemoteAddr()).
+			Msg("Connection rejected due to resource limits")
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close connection after limit check")
+		}
+		return
+	}
+
+	// Register connection
+	connMgr.AddConnection(clientID)
+	defer connMgr.RemoveConnection(clientID)
 
 	log.Info().
 		Str("remote_addr", conn.RemoteAddr()).

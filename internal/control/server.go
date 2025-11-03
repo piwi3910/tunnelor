@@ -15,6 +15,7 @@ type ServerHandler struct {
 	pskMap     map[string]string
 	sessions   map[string]*Session
 	connection *quic.Connection
+	clientID   string // Authenticated client ID
 }
 
 // Session represents an authenticated client session
@@ -97,6 +98,7 @@ func (h *ServerHandler) HandleControlStream(stream *quicgo.Stream) error {
 	}
 
 	h.sessions[sessionID] = session
+	h.clientID = authMsg.ClientID // Store authenticated client ID
 
 	log.Info().
 		Str("client_id", authMsg.ClientID).
@@ -166,4 +168,9 @@ func (h *ServerHandler) RemoveSession(sessionID string) {
 // SessionCount returns the number of active sessions
 func (h *ServerHandler) SessionCount() int {
 	return len(h.sessions)
+}
+
+// GetClientID returns the authenticated client ID
+func (h *ServerHandler) GetClientID() string {
+	return h.clientID
 }
