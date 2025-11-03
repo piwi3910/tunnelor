@@ -219,7 +219,9 @@ func runConnect(_ *cobra.Command, _ []string) error {
 
 	// Connect to QUIC server
 	if err := quicClient.Connect(); err != nil {
-		quicClient.Close()
+		if closeErr := quicClient.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close QUIC client after connection error")
+		}
 		log.Error().Err(err).Msg("Failed to connect to QUIC server")
 		return fmt.Errorf("failed to connect to QUIC server: %w", err)
 	}
@@ -234,11 +236,17 @@ func runConnect(_ *cobra.Command, _ []string) error {
 
 	// Authenticate with server
 	if err := controlHandler.Authenticate(); err != nil {
-		quicClient.Close()
+		if closeErr := quicClient.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close QUIC client after authentication error")
+		}
 		log.Error().Err(err).Msg("Failed to authenticate with server")
 		return fmt.Errorf("failed to authenticate with server: %w", err)
 	}
-	defer quicClient.Close()
+	defer func() {
+		if err := quicClient.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close QUIC client")
+		}
+	}()
 
 	log.Info().
 		Str("session_id", controlHandler.GetSessionID()).
@@ -246,7 +254,11 @@ func runConnect(_ *cobra.Command, _ []string) error {
 
 	// Create multiplexer for opening streams
 	multiplexer := mux.NewMultiplexer(quicClient.Connection())
-	defer multiplexer.Close()
+	defer func() {
+		if err := multiplexer.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close multiplexer")
+		}
+	}()
 
 	// Register default handlers (for responses from server)
 	mux.RegisterDefaultHandlers(multiplexer)
@@ -284,10 +296,14 @@ func runConnect(_ *cobra.Command, _ []string) error {
 	// Clean up listeners on exit
 	defer func() {
 		for _, l := range tcpListeners {
-			l.Close()
+			if err := l.Close(); err != nil {
+				log.Warn().Err(err).Msg("Failed to close TCP listener")
+			}
 		}
 		for _, l := range udpListeners {
-			l.Close()
+			if err := l.Close(); err != nil {
+				log.Warn().Err(err).Msg("Failed to close UDP listener")
+			}
 		}
 	}()
 

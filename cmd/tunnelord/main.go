@@ -89,7 +89,11 @@ func runServer(_ *cobra.Command, _ []string) {
 	if err := quicServer.Start(cfg.Listen); err != nil {
 		log.Fatal().Err(err).Msg("Failed to start QUIC server")
 	}
-	defer quicServer.Close()
+	defer func() {
+		if err := quicServer.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close QUIC server")
+		}
+	}()
 
 	// TODO: Start metrics server
 
@@ -142,7 +146,9 @@ func handleConnection(conn *quic.Connection, pskMap map[string]string) {
 			Err(err).
 			Str("remote_addr", conn.RemoteAddr()).
 			Msg("Authentication failed")
-		conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close connection after authentication failure")
+		}
 		return
 	}
 
@@ -153,7 +159,11 @@ func handleConnection(conn *quic.Connection, pskMap map[string]string) {
 
 	// Create multiplexer for this connection
 	multiplexer := mux.NewMultiplexer(conn)
-	defer multiplexer.Close()
+	defer func() {
+		if err := multiplexer.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close multiplexer")
+		}
+	}()
 
 	// Register default handlers
 	mux.RegisterDefaultHandlers(multiplexer)
