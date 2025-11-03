@@ -74,7 +74,7 @@ func TestWriteUDPDatagramMaxSize(t *testing.T) {
 	}
 
 	datagram := &UDPDatagram{
-		Length: uint16(len(maxData)),
+		Length: uint16(len(maxData)), // #nosec G115 -- maxData is 65535 bytes, safe for uint16
 		Data:   maxData,
 	}
 
