@@ -94,6 +94,50 @@ func generateTestCerts(t *testing.T) (certFile, keyFile string) {
 	return certFile, keyFile
 }
 
+// acceptAndHandleStreams accepts incoming streams and dispatches them to the multiplexer
+func acceptAndHandleStreams(serverConn *quic.Connection, serverMux *mux.Multiplexer, count int) {
+	go func() {
+		for i := 0; i < count; i++ {
+			stream, err := serverConn.AcceptStream()
+			if err != nil {
+				return
+			}
+
+			// Read stream header
+			headerBuf := make([]byte, 4)
+			if _, err := io.ReadFull(stream, headerBuf); err != nil {
+				continue
+			}
+
+			header := &mux.StreamHeader{
+				Version:  headerBuf[0],
+				Protocol: mux.ProtocolID(headerBuf[1]),
+				Flags:    headerBuf[2],
+			}
+
+			metaLen := int(headerBuf[3])
+			if metaLen > 0 {
+				metadata := make([]byte, metaLen)
+				if _, err := io.ReadFull(stream, metadata); err != nil {
+					continue
+				}
+				header.Metadata = metadata
+			}
+
+			if header.Protocol == mux.ProtocolControl {
+				continue
+			}
+
+			muxStream := &mux.Stream{
+				StreamID: uint64(stream.StreamID()),
+				Stream:   stream,
+				Header:   header,
+			}
+			go serverMux.HandleStream(muxStream)
+		}
+	}()
+}
+
 // testEchoMessages tests sending and receiving echo messages through a multiplexed stream
 func testEchoMessages(t *testing.T, clientMux *mux.Multiplexer, protocol mux.ProtocolID, echoAddr string, messages []string) {
 	t.Helper()
@@ -680,46 +724,7 @@ func TestTCPForwarding(t *testing.T) {
 	})
 
 	// Server accepts and handles streams
-	go func() {
-		for i := 0; i < 3; i++ {
-			stream, err := serverConn.AcceptStream()
-			if err != nil {
-				return
-			}
-
-			// Read stream header
-			headerBuf := make([]byte, 4)
-			if _, err := io.ReadFull(stream, headerBuf); err != nil {
-				continue
-			}
-
-			header := &mux.StreamHeader{
-				Version:  headerBuf[0],
-				Protocol: mux.ProtocolID(headerBuf[1]),
-				Flags:    headerBuf[2],
-			}
-
-			metaLen := int(headerBuf[3])
-			if metaLen > 0 {
-				metadata := make([]byte, metaLen)
-				if _, err := io.ReadFull(stream, metadata); err != nil {
-					continue
-				}
-				header.Metadata = metadata
-			}
-
-			if header.Protocol == mux.ProtocolControl {
-				continue
-			}
-
-			muxStream := &mux.Stream{
-				StreamID: uint64(stream.StreamID()),
-				Stream:   stream,
-				Header:   header,
-			}
-			go serverMux.HandleStream(muxStream)
-		}
-	}()
+	acceptAndHandleStreams(serverConn, serverMux, 3)
 
 	// Client opens TCP stream and sends test data
 	testData := []string{
@@ -911,46 +916,7 @@ func TestUDPForwarding(t *testing.T) {
 	})
 
 	// Server accepts and handles streams
-	go func() {
-		for i := 0; i < 3; i++ {
-			stream, err := serverConn.AcceptStream()
-			if err != nil {
-				return
-			}
-
-			// Read stream header
-			headerBuf := make([]byte, 4)
-			if _, err := io.ReadFull(stream, headerBuf); err != nil {
-				continue
-			}
-
-			header := &mux.StreamHeader{
-				Version:  headerBuf[0],
-				Protocol: mux.ProtocolID(headerBuf[1]),
-				Flags:    headerBuf[2],
-			}
-
-			metaLen := int(headerBuf[3])
-			if metaLen > 0 {
-				metadata := make([]byte, metaLen)
-				if _, err := io.ReadFull(stream, metadata); err != nil {
-					continue
-				}
-				header.Metadata = metadata
-			}
-
-			if header.Protocol == mux.ProtocolControl {
-				continue
-			}
-
-			muxStream := &mux.Stream{
-				StreamID: uint64(stream.StreamID()),
-				Stream:   stream,
-				Header:   header,
-			}
-			go serverMux.HandleStream(muxStream)
-		}
-	}()
+	acceptAndHandleStreams(serverConn, serverMux, 3)
 
 	// Client opens UDP stream and sends test data
 	testData := []string{
