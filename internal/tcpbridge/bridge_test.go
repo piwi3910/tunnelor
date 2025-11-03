@@ -96,9 +96,12 @@ type pipeReadWriteCloser struct {
 }
 
 func (p *pipeReadWriteCloser) Close() error {
-	p.ReadCloser.Close()
-	p.WriteCloser.Close()
-	return nil
+	err1 := p.ReadCloser.Close()
+	err2 := p.WriteCloser.Close()
+	if err1 != nil {
+		return err1
+	}
+	return err2
 }
 
 // TestBidirectionalCopyLargeData tests copying large amounts of data
@@ -139,17 +142,17 @@ func BenchmarkBidirectionalCopy(b *testing.B) {
 		conn2 := &pipeReadWriteCloser{pr2, pw1}
 
 		go func() {
-			BidirectionalCopy(conn1, conn2)
+			_ = BidirectionalCopy(conn1, conn2)
 		}()
 
 		go func() {
-			pw1.Write([]byte(data))
-			pw1.Close()
+			_, _ = pw1.Write([]byte(data))
+			_ = pw1.Close()
 		}()
 
-		io.Copy(io.Discard, pr2)
-		pr1.Close()
-		pr2.Close()
-		pw2.Close()
+		_, _ = io.Copy(io.Discard, pr2)
+		_ = pr1.Close()
+		_ = pr2.Close()
+		_ = pw2.Close()
 	}
 }
