@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-)
+
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require")
 
 func TestNewConnectionManager(t *testing.T) {
 	cm := NewConnectionManager(10, 100)
 	if cm == nil {
-		t.Fatal("NewConnectionManager returned nil")
+		require.Fail(t, "NewConnectionManager returned nil")
 	}
 
 	if cm.maxConnectionsPerClient != 10 {
@@ -56,7 +59,7 @@ func TestCanAccept_PerClientLimit(t *testing.T) {
 	// Try to add 6th connection - should fail
 	err := cm.CanAccept("client1")
 	if err == nil {
-		t.Error("CanAccept() should have failed at per-client limit")
+		assert.Fail(t, "CanAccept() should have failed at per-client limit")
 	}
 	if !strings.Contains(err.Error(), "client connection limit") {
 		t.Errorf("Error message should mention client limit, got: %v", err)
@@ -83,7 +86,7 @@ func TestCanAccept_TotalLimit(t *testing.T) {
 	// Try to add 11th connection - should fail
 	err := cm.CanAccept("client11")
 	if err == nil {
-		t.Error("CanAccept() should have failed at total limit")
+		assert.Fail(t, "CanAccept() should have failed at total limit")
 	}
 	if !strings.Contains(err.Error(), "server connection limit") {
 		t.Errorf("Error message should mention server limit, got: %v", err)
@@ -189,18 +192,18 @@ func TestBothLimitsEnforced(t *testing.T) {
 	// Total limit (5) should be reached
 	err := cm.CanAccept("client3")
 	if err == nil {
-		t.Error("CanAccept() should have failed at total limit")
+		assert.Fail(t, "CanAccept() should have failed at total limit")
 	}
 
 	// Client1 should also be at per-client limit
 	err = cm.CanAccept("client1")
 	if err == nil {
-		t.Error("CanAccept() should have failed at per-client limit for client1")
+		assert.Fail(t, "CanAccept() should have failed at per-client limit for client1")
 	}
 
 	// Client2 should also be blocked by total limit (even though under per-client limit)
 	err = cm.CanAccept("client2")
 	if err == nil {
-		t.Error("CanAccept() should have failed at total limit for client2")
+		assert.Fail(t, "CanAccept() should have failed at total limit for client2")
 	}
 }

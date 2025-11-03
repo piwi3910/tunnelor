@@ -5,12 +5,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewServer(t *testing.T) {
 	server := NewServer(9090)
 	if server == nil {
-		t.Fatal("NewServer returned nil")
+		require.Fail(t, "NewServer returned nil")
 	}
 	if server.port != 9090 {
 		t.Errorf("NewServer port = %d, want 9090", server.port)
@@ -40,7 +42,7 @@ func TestStartFunction(t *testing.T) {
 		t.Fatalf("Start() failed: %v", err)
 	}
 	if server == nil {
-		t.Fatal("Start() returned nil server")
+		require.Fail(t, "Start() returned nil server")
 	}
 
 	// Give server time to start

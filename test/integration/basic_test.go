@@ -21,6 +21,7 @@ import (
 	"time"
 
 	quicgo "github.com/quic-go/quic-go"
+	"github.com/stretchr/testify/require"
 
 	"github.com/piwi3910/tunnelor/internal/control"
 	"github.com/piwi3910/tunnelor/internal/logger"
@@ -44,7 +45,7 @@ func generateTestCerts(t *testing.T) (certFile, keyFile string) {
 	// Generate private key
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		t.Fatalf("Failed to generate private key: %v", err)
+		require.NoError(t, err, "Failed to generate private key")
 	}
 
 	// Create certificate template
@@ -65,31 +66,31 @@ func generateTestCerts(t *testing.T) (certFile, keyFile string) {
 	// Create certificate
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
-		t.Fatalf("Failed to create certificate: %v", err)
+		require.NoError(t, err, "Failed to create certificate")
 	}
 
 	// Write certificate
 	certOut, err := os.Create(certFile) // #nosec G304 -- Test file path is controlled by test setup
 	if err != nil {
-		t.Fatalf("Failed to create cert file: %v", err)
+		require.NoError(t, err, "Failed to create cert file")
 	}
 	defer func() { _ = certOut.Close() }()
 	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		t.Fatalf("Failed to encode certificate: %v", err)
+		require.NoError(t, err, "Failed to encode certificate")
 	}
 
 	// Write private key
 	keyOut, err := os.Create(keyFile) // #nosec G304 -- Test file path is controlled by test setup
 	if err != nil {
-		t.Fatalf("Failed to create key file: %v", err)
+		require.NoError(t, err, "Failed to create key file")
 	}
 	defer func() { _ = keyOut.Close() }()
 	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
-		t.Fatalf("Failed to marshal private key: %v", err)
+		require.NoError(t, err, "Failed to marshal private key")
 	}
 	if err := pem.Encode(keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}); err != nil {
-		t.Fatalf("Failed to encode private key: %v", err)
+		require.NoError(t, err, "Failed to encode private key")
 	}
 
 	return certFile, keyFile
@@ -218,7 +219,7 @@ func TestBasicConnection(t *testing.T) {
 		TLSKey:     keyFile,
 	})
 	if err != nil {
-		t.Fatalf("Failed to create server: %v", err)
+		require.NoError(t, err, "Failed to create server")
 	}
 
 	// Start server in background
@@ -235,7 +236,7 @@ func TestBasicConnection(t *testing.T) {
 	// Check if server failed to start
 	select {
 	case err := <-errChan:
-		t.Fatalf("Server failed to start: %v", err)
+		require.NoError(t, err, "Server failed to start")
 	default:
 	}
 
@@ -251,18 +252,18 @@ func TestBasicConnection(t *testing.T) {
 		InsecureSkipVerify: true, // OK for tests
 	})
 	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
+		require.NoError(t, err, "Failed to create client")
 	}
 	defer func() { _ = client.Close() }()
 
 	// Connect to server
 	if err := client.Connect(); err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+		require.NoError(t, err, "Failed to connect")
 	}
 
 	// Verify connection
 	if client.Connection() == nil {
-		t.Fatal("Client connection is nil")
+		require.Fail(t, "Client connection is nil")
 	}
 
 	t.Log("✅ Basic QUIC connection successful")
@@ -284,7 +285,7 @@ func TestAuthentication(t *testing.T) {
 		TLSKey:     keyFile,
 	})
 	if err != nil {
-		t.Fatalf("Failed to create server: %v", err)
+		require.NoError(t, err, "Failed to create server")
 	}
 
 	// Start server and wait for it to be ready
@@ -297,7 +298,7 @@ func TestAuthentication(t *testing.T) {
 	select {
 	case err := <-serverStarted:
 		if err != nil {
-			t.Fatalf("Server failed to start: %v", err)
+			require.NoError(t, err, "Server failed to start")
 		}
 	case <-time.After(500 * time.Millisecond):
 		// Server started successfully (Start is blocking)
@@ -332,12 +333,12 @@ func TestAuthentication(t *testing.T) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
+		require.NoError(t, err, "Failed to create client")
 	}
 	defer func() { _ = client.Close() }()
 
 	if err := client.Connect(); err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+		require.NoError(t, err, "Failed to connect")
 	}
 
 	// Wait for server to accept connection
@@ -345,7 +346,7 @@ func TestAuthentication(t *testing.T) {
 	select {
 	case serverConn = <-connectionAccepted:
 	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for server to accept connection")
+		require.Fail(t, "Timeout waiting for server to accept connection")
 	}
 
 	// Setup control handlers
@@ -369,22 +370,22 @@ func TestAuthentication(t *testing.T) {
 
 	// Client authenticates
 	if err := clientHandler.Authenticate(); err != nil {
-		t.Fatalf("Client authentication failed: %v", err)
+		require.NoError(t, err, "Client authentication failed")
 	}
 
 	// Wait for server authentication result
 	select {
 	case err := <-authResult:
 		if err != nil {
-			t.Fatalf("Server authentication failed: %v", err)
+			require.NoError(t, err, "Server authentication failed")
 		}
 	case <-time.After(3 * time.Second):
-		t.Fatal("Timeout waiting for authentication")
+		require.Fail(t, "Timeout waiting for authentication")
 	}
 
 	// Verify client got session ID
 	if clientHandler.GetSessionID() == "" {
-		t.Fatal("Client did not receive session ID")
+		require.Fail(t, "Client did not receive session ID")
 	}
 
 	t.Logf("✅ Authentication successful (session: %s)", clientHandler.GetSessionID())
@@ -406,7 +407,7 @@ func TestStreamMultiplexing(t *testing.T) {
 		TLSKey:     keyFile,
 	})
 	if err != nil {
-		t.Fatalf("Failed to create server: %v", err)
+		require.NoError(t, err, "Failed to create server")
 	}
 
 	// Start server and wait for it to be ready
@@ -418,7 +419,7 @@ func TestStreamMultiplexing(t *testing.T) {
 	select {
 	case err := <-serverStarted:
 		if err != nil {
-			t.Fatalf("Server failed to start: %v", err)
+			require.NoError(t, err, "Server failed to start")
 		}
 	case <-time.After(500 * time.Millisecond):
 		// Server started successfully
@@ -450,12 +451,12 @@ func TestStreamMultiplexing(t *testing.T) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
+		require.NoError(t, err, "Failed to create client")
 	}
 	defer func() { _ = client.Close() }()
 
 	if err := client.Connect(); err != nil {
-		t.Fatalf("Failed to connect: %v", err)
+		require.NoError(t, err, "Failed to connect")
 	}
 
 	// Wait for connection
@@ -463,7 +464,7 @@ func TestStreamMultiplexing(t *testing.T) {
 	select {
 	case serverConn = <-connectionAccepted:
 	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for connection")
+		require.Fail(t, "Timeout waiting for connection")
 	}
 
 	// Authenticate first
@@ -476,7 +477,7 @@ func TestStreamMultiplexing(t *testing.T) {
 	}()
 
 	if err := clientHandler.Authenticate(); err != nil {
-		t.Fatalf("Authentication failed: %v", err)
+		require.NoError(t, err, "Authentication failed")
 	}
 
 	time.Sleep(100 * time.Millisecond)
@@ -581,7 +582,7 @@ func TestTCPForwarding(t *testing.T) {
 	// Create echo TCP server (this simulates the remote service we want to reach)
 	echoListener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("Failed to create echo server: %v", err)
+		require.NoError(t, err, "Failed to create echo server")
 	}
 	defer func() { _ = echoListener.Close() }()
 
@@ -618,7 +619,7 @@ func TestTCPForwarding(t *testing.T) {
 		TLSKey:     keyFile,
 	})
 	if err != nil {
-		t.Fatalf("Failed to create QUIC server: %v", err)
+		require.NoError(t, err, "Failed to create QUIC server")
 	}
 
 	serverStarted := make(chan error, 1)
@@ -629,7 +630,7 @@ func TestTCPForwarding(t *testing.T) {
 	select {
 	case err := <-serverStarted:
 		if err != nil {
-			t.Fatalf("Server failed to start: %v", err)
+			require.NoError(t, err, "Server failed to start")
 		}
 	case <-time.After(500 * time.Millisecond):
 	}
@@ -659,12 +660,12 @@ func TestTCPForwarding(t *testing.T) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		t.Fatalf("Failed to create QUIC client: %v", err)
+		require.NoError(t, err, "Failed to create QUIC client")
 	}
 	defer func() { _ = client.Close() }()
 
 	if err := client.Connect(); err != nil {
-		t.Fatalf("Failed to connect QUIC client: %v", err)
+		require.NoError(t, err, "Failed to connect QUIC client")
 	}
 
 	// Wait for server to accept connection
@@ -672,7 +673,7 @@ func TestTCPForwarding(t *testing.T) {
 	select {
 	case serverConn = <-connectionAccepted:
 	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for QUIC connection")
+		require.Fail(t, "Timeout waiting for QUIC connection")
 	}
 
 	// Authenticate
@@ -685,7 +686,7 @@ func TestTCPForwarding(t *testing.T) {
 	}()
 
 	if err := clientHandler.Authenticate(); err != nil {
-		t.Fatalf("Authentication failed: %v", err)
+		require.NoError(t, err, "Authentication failed")
 	}
 
 	time.Sleep(100 * time.Millisecond)
@@ -755,7 +756,7 @@ func TestUDPForwarding(t *testing.T) {
 	// Create echo UDP server (this simulates the remote service we want to reach)
 	echoConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
 	if err != nil {
-		t.Fatalf("Failed to create UDP echo server: %v", err)
+		require.NoError(t, err, "Failed to create UDP echo server")
 	}
 	defer func() { _ = echoConn.Close() }()
 
@@ -784,7 +785,7 @@ func TestUDPForwarding(t *testing.T) {
 		TLSKey:     keyFile,
 	})
 	if err != nil {
-		t.Fatalf("Failed to create QUIC server: %v", err)
+		require.NoError(t, err, "Failed to create QUIC server")
 	}
 
 	serverStarted := make(chan error, 1)
@@ -795,7 +796,7 @@ func TestUDPForwarding(t *testing.T) {
 	select {
 	case err := <-serverStarted:
 		if err != nil {
-			t.Fatalf("Server failed to start: %v", err)
+			require.NoError(t, err, "Server failed to start")
 		}
 	case <-time.After(500 * time.Millisecond):
 	}
@@ -825,12 +826,12 @@ func TestUDPForwarding(t *testing.T) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		t.Fatalf("Failed to create QUIC client: %v", err)
+		require.NoError(t, err, "Failed to create QUIC client")
 	}
 	defer func() { _ = client.Close() }()
 
 	if err := client.Connect(); err != nil {
-		t.Fatalf("Failed to connect QUIC client: %v", err)
+		require.NoError(t, err, "Failed to connect QUIC client")
 	}
 
 	// Wait for server to accept connection
@@ -838,7 +839,7 @@ func TestUDPForwarding(t *testing.T) {
 	select {
 	case serverConn = <-connectionAccepted:
 	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for QUIC connection")
+		require.Fail(t, "Timeout waiting for QUIC connection")
 	}
 
 	// Authenticate
@@ -851,7 +852,7 @@ func TestUDPForwarding(t *testing.T) {
 	}()
 
 	if err := clientHandler.Authenticate(); err != nil {
-		t.Fatalf("Authentication failed: %v", err)
+		require.NoError(t, err, "Authentication failed")
 	}
 
 	time.Sleep(100 * time.Millisecond)

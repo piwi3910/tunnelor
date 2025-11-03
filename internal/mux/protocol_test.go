@@ -3,7 +3,10 @@ package mux
 import (
 	"bytes"
 	"testing"
-)
+
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require")
 
 func TestProtocolID_String(t *testing.T) {
 	tests := []struct {
@@ -22,7 +25,7 @@ func TestProtocolID_String(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.protocol.String()
 			if result != tt.expected {
-				t.Errorf("ProtocolID.String() = %v, want %v", result, tt.expected)
+				assert.Equal(t, tt.expected, result, "ProtocolID.String() should match")
 			}
 		})
 	}
@@ -70,13 +73,13 @@ func TestNewStreamHeader(t *testing.T) {
 			}
 			if !tt.wantErr {
 				if header.Version != StreamVersion {
-					t.Errorf("NewStreamHeader() Version = %v, want %v", header.Version, StreamVersion)
+					assert.Equal(t, StreamVersion, header.Version, "NewStreamHeader() Version should match")
 				}
 				if header.Protocol != tt.protocol {
-					t.Errorf("NewStreamHeader() Protocol = %v, want %v", header.Protocol, tt.protocol)
+					assert.Equal(t, tt.protocol, header.Protocol, "NewStreamHeader() Protocol should match")
 				}
 				if !bytes.Equal(header.Metadata, tt.metadata) {
-					t.Error("NewStreamHeader() Metadata mismatch")
+					assert.Fail(t, "NewStreamHeader() Metadata mismatch")
 				}
 			}
 		})
@@ -124,27 +127,27 @@ func TestWriteReadHeader(t *testing.T) {
 			// Write header
 			err := WriteHeader(&buf, tt.header)
 			if err != nil {
-				t.Fatalf("WriteHeader() error = %v", err)
+				require.NoError(t, err, "WriteHeader() should not return error")
 			}
 
 			// Read header
 			header2, err := ReadHeader(&buf)
 			if err != nil {
-				t.Fatalf("ReadHeader() error = %v", err)
+				require.NoError(t, err, "ReadHeader() should not return error")
 			}
 
 			// Compare
 			if header2.Version != tt.header.Version {
-				t.Errorf("ReadHeader() Version = %v, want %v", header2.Version, tt.header.Version)
+				assert.Equal(t, tt.header.Version, header2.Version, "ReadHeader() Version should match")
 			}
 			if header2.Protocol != tt.header.Protocol {
-				t.Errorf("ReadHeader() Protocol = %v, want %v", header2.Protocol, tt.header.Protocol)
+				assert.Equal(t, tt.header.Protocol, header2.Protocol, "ReadHeader() Protocol should match")
 			}
 			if header2.Flags != tt.header.Flags {
-				t.Errorf("ReadHeader() Flags = %v, want %v", header2.Flags, tt.header.Flags)
+				assert.Equal(t, tt.header.Flags, header2.Flags, "ReadHeader() Flags should match")
 			}
 			if !bytes.Equal(header2.Metadata, tt.header.Metadata) {
-				t.Errorf("ReadHeader() Metadata = %v, want %v", header2.Metadata, tt.header.Metadata)
+				assert.Equal(t, tt.header.Metadata, header2.Metadata, "ReadHeader() Metadata should match")
 			}
 		})
 	}
@@ -165,7 +168,7 @@ func TestReadHeaderInvalidVersion(t *testing.T) {
 
 	_, err := ReadHeader(&buf)
 	if err == nil {
-		t.Error("ReadHeader() expected error for invalid version")
+		assert.Fail(t, "ReadHeader() expected error for invalid version")
 	}
 }
 
@@ -185,7 +188,7 @@ func TestHeaderSize(t *testing.T) {
 			header, _ := NewStreamHeader(ProtocolTCP, tt.metadata)
 			size := header.HeaderSize()
 			if size != tt.expectedSize {
-				t.Errorf("HeaderSize() = %v, want %v", size, tt.expectedSize)
+				assert.Equal(t, tt.expectedSize, size, "HeaderSize() should match")
 			}
 		})
 	}
@@ -196,31 +199,31 @@ func TestHeaderFlags(t *testing.T) {
 
 	// Initially no flags
 	if header.HasFlag(FlagCompressed) {
-		t.Error("HasFlag(FlagCompressed) = true, want false")
+		assert.Fail(t, "HasFlag(FlagCompressed) = true, want false")
 	}
 
 	// Set flag
 	header.SetFlag(FlagCompressed)
 	if !header.HasFlag(FlagCompressed) {
-		t.Error("HasFlag(FlagCompressed) = false after SetFlag, want true")
+		assert.Fail(t, "HasFlag(FlagCompressed) = false after SetFlag, want true")
 	}
 
 	// Set another flag
 	header.SetFlag(FlagPriority)
 	if !header.HasFlag(FlagPriority) {
-		t.Error("HasFlag(FlagPriority) = false after SetFlag, want true")
+		assert.Fail(t, "HasFlag(FlagPriority) = false after SetFlag, want true")
 	}
 	if !header.HasFlag(FlagCompressed) {
-		t.Error("HasFlag(FlagCompressed) = false, should still be true")
+		assert.Fail(t, "HasFlag(FlagCompressed) = false, should still be true")
 	}
 
 	// Clear flag
 	header.ClearFlag(FlagCompressed)
 	if header.HasFlag(FlagCompressed) {
-		t.Error("HasFlag(FlagCompressed) = true after ClearFlag, want false")
+		assert.Fail(t, "HasFlag(FlagCompressed) = true after ClearFlag, want false")
 	}
 	if !header.HasFlag(FlagPriority) {
-		t.Error("HasFlag(FlagPriority) = false, should still be true")
+		assert.Fail(t, "HasFlag(FlagPriority) = false, should still be true")
 	}
 }
 
@@ -232,11 +235,11 @@ func TestEncodeTCPMetadata(t *testing.T) {
 
 	data, err := EncodeTCPMetadata(meta)
 	if err != nil {
-		t.Fatalf("EncodeTCPMetadata() error = %v", err)
+		require.NoError(t, err, "EncodeTCPMetadata() should not return error")
 	}
 
 	if len(data) == 0 {
-		t.Error("EncodeTCPMetadata() returned empty data")
+		assert.Fail(t, "EncodeTCPMetadata() returned empty data")
 	}
 }
 
@@ -249,27 +252,27 @@ func TestDecodeTCPMetadata(t *testing.T) {
 	// Encode
 	data, err := EncodeTCPMetadata(original)
 	if err != nil {
-		t.Fatalf("EncodeTCPMetadata() error = %v", err)
+		require.NoError(t, err, "EncodeTCPMetadata() should not return error")
 	}
 
 	// Decode
 	decoded, err := DecodeTCPMetadata(data)
 	if err != nil {
-		t.Fatalf("DecodeTCPMetadata() error = %v", err)
+		require.NoError(t, err, "DecodeTCPMetadata() should not return error")
 	}
 
 	if decoded.SourceAddr != original.SourceAddr {
-		t.Errorf("DecodeTCPMetadata() SourceAddr = %v, want %v", decoded.SourceAddr, original.SourceAddr)
+		assert.Equal(t, original.SourceAddr, decoded.SourceAddr, "DecodeTCPMetadata() SourceAddr should match")
 	}
 	if decoded.TargetAddr != original.TargetAddr {
-		t.Errorf("DecodeTCPMetadata() TargetAddr = %v, want %v", decoded.TargetAddr, original.TargetAddr)
+		assert.Equal(t, original.TargetAddr, decoded.TargetAddr, "DecodeTCPMetadata() TargetAddr should match")
 	}
 }
 
 func TestDecodeTCPMetadataInvalid(t *testing.T) {
 	_, err := DecodeTCPMetadata([]byte("invalid json"))
 	if err == nil {
-		t.Error("DecodeTCPMetadata() expected error for invalid JSON")
+		assert.Fail(t, "DecodeTCPMetadata() expected error for invalid JSON")
 	}
 }
 
@@ -281,11 +284,11 @@ func TestEncodeUDPMetadata(t *testing.T) {
 
 	data, err := EncodeUDPMetadata(meta)
 	if err != nil {
-		t.Fatalf("EncodeUDPMetadata() error = %v", err)
+		require.NoError(t, err, "EncodeUDPMetadata() should not return error")
 	}
 
 	if len(data) == 0 {
-		t.Error("EncodeUDPMetadata() returned empty data")
+		assert.Fail(t, "EncodeUDPMetadata() returned empty data")
 	}
 }
 
@@ -298,27 +301,27 @@ func TestDecodeUDPMetadata(t *testing.T) {
 	// Encode
 	data, err := EncodeUDPMetadata(original)
 	if err != nil {
-		t.Fatalf("EncodeUDPMetadata() error = %v", err)
+		require.NoError(t, err, "EncodeUDPMetadata() should not return error")
 	}
 
 	// Decode
 	decoded, err := DecodeUDPMetadata(data)
 	if err != nil {
-		t.Fatalf("DecodeUDPMetadata() error = %v", err)
+		require.NoError(t, err, "DecodeUDPMetadata() should not return error")
 	}
 
 	if decoded.SourceAddr != original.SourceAddr {
-		t.Errorf("DecodeUDPMetadata() SourceAddr = %v, want %v", decoded.SourceAddr, original.SourceAddr)
+		assert.Equal(t, original.SourceAddr, decoded.SourceAddr, "DecodeUDPMetadata() SourceAddr should match")
 	}
 	if decoded.TargetAddr != original.TargetAddr {
-		t.Errorf("DecodeUDPMetadata() TargetAddr = %v, want %v", decoded.TargetAddr, original.TargetAddr)
+		assert.Equal(t, original.TargetAddr, decoded.TargetAddr, "DecodeUDPMetadata() TargetAddr should match")
 	}
 }
 
 func TestDecodeUDPMetadataInvalid(t *testing.T) {
 	_, err := DecodeUDPMetadata([]byte("invalid json"))
 	if err == nil {
-		t.Error("DecodeUDPMetadata() expected error for invalid JSON")
+		assert.Fail(t, "DecodeUDPMetadata() expected error for invalid JSON")
 	}
 }
 
@@ -335,7 +338,7 @@ func TestMetadataRoundTrip(t *testing.T) {
 		t.Errorf("TCP metadata round trip failed: %v", err)
 	}
 	if tcpDecoded.SourceAddr != tcpMeta.SourceAddr || tcpDecoded.TargetAddr != tcpMeta.TargetAddr {
-		t.Error("TCP metadata round trip data mismatch")
+		assert.Fail(t, "TCP metadata round trip data mismatch")
 	}
 
 	// UDP metadata round trip
@@ -350,6 +353,165 @@ func TestMetadataRoundTrip(t *testing.T) {
 		t.Errorf("UDP metadata round trip failed: %v", err)
 	}
 	if udpDecoded.SourceAddr != udpMeta.SourceAddr || udpDecoded.TargetAddr != udpMeta.TargetAddr {
-		t.Error("UDP metadata round trip data mismatch")
+		assert.Fail(t, "UDP metadata round trip data mismatch")
 	}
+}
+
+// Test ReadHeader with EOF
+func TestReadHeaderEOF(t *testing.T) {
+	var buf bytes.Buffer
+
+	_, err := ReadHeader(&buf)
+	assert.Error(t, err, "ReadHeader should fail with EOF on empty buffer")
+}
+
+// Test ReadHeader with incomplete header
+func TestReadHeaderIncomplete(t *testing.T) {
+	var buf bytes.Buffer
+
+	// Write only first two bytes
+	buf.WriteByte(StreamVersion)
+	buf.WriteByte(byte(ProtocolTCP))
+
+	_, err := ReadHeader(&buf)
+	assert.Error(t, err, "ReadHeader should fail with incomplete header")
+}
+
+// Test ReadHeader with incomplete metadata
+func TestReadHeaderIncompleteMetadata(t *testing.T) {
+	var buf bytes.Buffer
+
+	// Write header indicating metadata exists
+	buf.WriteByte(StreamVersion)
+	buf.WriteByte(byte(ProtocolTCP))
+	buf.WriteByte(0)    // flags
+	buf.WriteByte(10)   // metadata length = 10 bytes
+
+	// But only write 5 bytes of metadata
+	buf.Write([]byte("hello"))
+
+	_, err := ReadHeader(&buf)
+	assert.Error(t, err, "ReadHeader should fail with incomplete metadata")
+}
+
+// Test WriteHeader error path
+func TestWriteHeaderError(t *testing.T) {
+	header := &StreamHeader{
+		Version:  StreamVersion,
+		Protocol: ProtocolTCP,
+		Flags:    0,
+		Metadata: []byte("test"),
+	}
+
+	// Create a writer that fails
+	failWriter := &failingWriter{}
+
+	err := WriteHeader(failWriter, header)
+	assert.Error(t, err, "WriteHeader should fail with failing writer")
+}
+
+// failingWriter is a writer that always fails
+type failingWriter struct{}
+
+func (f *failingWriter) Write(p []byte) (n int, err error) {
+	return 0, bytes.ErrTooLarge
+}
+
+// Test encoding empty metadata
+func TestEncodeEmptyMetadata(t *testing.T) {
+	// TCP with empty addresses
+	tcpMeta := TCPMetadata{
+		SourceAddr: "",
+		TargetAddr: "",
+	}
+	tcpData, err := EncodeTCPMetadata(tcpMeta)
+	require.NoError(t, err, "EncodeTCPMetadata should handle empty addresses")
+	assert.NotNil(t, tcpData)
+
+	decoded, err := DecodeTCPMetadata(tcpData)
+	require.NoError(t, err)
+	assert.Equal(t, "", decoded.SourceAddr)
+	assert.Equal(t, "", decoded.TargetAddr)
+
+	// UDP with empty addresses
+	udpMeta := UDPMetadata{
+		SourceAddr: "",
+		TargetAddr: "",
+	}
+	udpData, err := EncodeUDPMetadata(udpMeta)
+	require.NoError(t, err, "EncodeUDPMetadata should handle empty addresses")
+	assert.NotNil(t, udpData)
+
+	decodedUDP, err := DecodeUDPMetadata(udpData)
+	require.NoError(t, err)
+	assert.Equal(t, "", decodedUDP.SourceAddr)
+	assert.Equal(t, "", decodedUDP.TargetAddr)
+}
+
+// Test decoding empty data
+func TestDecodeEmptyData(t *testing.T) {
+	_, err := DecodeTCPMetadata([]byte{})
+	assert.Error(t, err, "DecodeTCPMetadata should fail with empty data")
+
+	_, err = DecodeUDPMetadata([]byte{})
+	assert.Error(t, err, "DecodeUDPMetadata should fail with empty data")
+}
+
+// Test header with maximum metadata size
+func TestHeaderWithMaxMetadata(t *testing.T) {
+	maxMeta := make([]byte, MaxMetadataSize)
+	for i := range maxMeta {
+		maxMeta[i] = byte(i % 256)
+	}
+
+	header, err := NewStreamHeader(ProtocolTCP, maxMeta)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	err = WriteHeader(&buf, header)
+	require.NoError(t, err)
+
+	readHeader, err := ReadHeader(&buf)
+	require.NoError(t, err)
+	assert.Equal(t, MaxMetadataSize, len(readHeader.Metadata))
+	assert.Equal(t, maxMeta, readHeader.Metadata)
+}
+
+// Test all protocol IDs
+func TestAllProtocolIDs(t *testing.T) {
+	protocols := []ProtocolID{ProtocolTCP, ProtocolUDP, ProtocolControl, ProtocolRaw}
+
+	for _, proto := range protocols {
+		header, err := NewStreamHeader(proto, []byte("test"))
+		require.NoError(t, err)
+		assert.Equal(t, proto, header.Protocol)
+
+		// Test string representation
+		str := proto.String()
+		assert.NotEmpty(t, str)
+		assert.NotContains(t, str, "UNKNOWN")
+	}
+}
+
+// Test multiple flags
+func TestMultipleFlags(t *testing.T) {
+	header, _ := NewStreamHeader(ProtocolTCP, nil)
+
+	// Set multiple flags
+	header.SetFlag(FlagCompressed)
+	header.SetFlag(FlagPriority)
+	header.SetFlag(FlagEncrypted)
+
+	// Verify all are set
+	assert.True(t, header.HasFlag(FlagCompressed))
+	assert.True(t, header.HasFlag(FlagPriority))
+	assert.True(t, header.HasFlag(FlagEncrypted))
+
+	// Clear one flag
+	header.ClearFlag(FlagPriority)
+
+	// Verify state
+	assert.True(t, header.HasFlag(FlagCompressed))
+	assert.False(t, header.HasFlag(FlagPriority))
+	assert.True(t, header.HasFlag(FlagEncrypted))
 }

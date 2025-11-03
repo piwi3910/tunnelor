@@ -2,15 +2,21 @@ package udpbridge
 
 import (
 	"bytes"
+	"context"
 	"net"
+	"sync"
 	"testing"
 	"time"
+
+	quicgo "github.com/quic-go/quic-go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSessionTimeout(t *testing.T) {
 	expectedTimeout := 2 * time.Minute
 	if SessionTimeout != expectedTimeout {
-		t.Errorf("SessionTimeout = %v, want %v", SessionTimeout, expectedTimeout)
+		assert.Equal(t, expectedTimeout, SessionTimeout, "SessionTimeout should match")
 	}
 }
 
@@ -45,22 +51,22 @@ func TestWriteReadUDPDatagram(t *testing.T) {
 			// Write datagram
 			err := WriteUDPDatagram(&buf, datagram)
 			if err != nil {
-				t.Fatalf("WriteUDPDatagram() error = %v", err)
+				require.NoError(t, err, "WriteUDPDatagram() should not return error")
 			}
 
 			// Read datagram
 			datagram2, err := ReadUDPDatagram(&buf)
 			if err != nil {
-				t.Fatalf("ReadUDPDatagram() error = %v", err)
+				require.NoError(t, err, "ReadUDPDatagram() should not return error")
 			}
 
 			// Verify
 			if datagram2.Length != datagram.Length {
-				t.Errorf("ReadUDPDatagram() Length = %v, want %v", datagram2.Length, datagram.Length)
+				assert.Equal(t, datagram.Length, datagram2.Length, "ReadUDPDatagram() Length should match")
 			}
 
 			if !bytes.Equal(datagram2.Data, datagram.Data) {
-				t.Error("ReadUDPDatagram() Data mismatch")
+				assert.Fail(t, "ReadUDPDatagram() Data mismatch")
 			}
 		})
 	}
@@ -81,17 +87,17 @@ func TestWriteUDPDatagramMaxSize(t *testing.T) {
 	var buf bytes.Buffer
 	err := WriteUDPDatagram(&buf, datagram)
 	if err != nil {
-		t.Fatalf("WriteUDPDatagram() error = %v", err)
+		require.NoError(t, err, "WriteUDPDatagram() should not return error")
 	}
 
 	// Read back
 	datagram2, err := ReadUDPDatagram(&buf)
 	if err != nil {
-		t.Fatalf("ReadUDPDatagram() error = %v", err)
+		require.NoError(t, err, "ReadUDPDatagram() should not return error")
 	}
 
 	if !bytes.Equal(datagram2.Data, maxData) {
-		t.Error("ReadUDPDatagram() max size data mismatch")
+		assert.Fail(t, "ReadUDPDatagram() max size data mismatch")
 	}
 }
 
@@ -100,7 +106,7 @@ func TestReadUDPDatagramEOF(t *testing.T) {
 
 	_, err := ReadUDPDatagram(&buf)
 	if err == nil {
-		t.Error("ReadUDPDatagram() expected error for empty buffer, got nil")
+		assert.Fail(t, "ReadUDPDatagram() expected error for empty buffer, got nil")
 	}
 }
 
@@ -109,7 +115,7 @@ func TestReadUDPDatagramIncompleteLength(t *testing.T) {
 
 	_, err := ReadUDPDatagram(buf)
 	if err == nil {
-		t.Error("ReadUDPDatagram() expected error for incomplete length")
+		assert.Fail(t, "ReadUDPDatagram() expected error for incomplete length")
 	}
 }
 
@@ -123,7 +129,7 @@ func TestReadUDPDatagramIncompleteData(t *testing.T) {
 
 	_, err := ReadUDPDatagram(&buf)
 	if err == nil {
-		t.Error("ReadUDPDatagram() expected error for incomplete data")
+		assert.Fail(t, "ReadUDPDatagram() expected error for incomplete data")
 	}
 }
 
@@ -144,7 +150,7 @@ func TestMultipleDatagrams(t *testing.T) {
 		}
 		err := WriteUDPDatagram(&buf, dg)
 		if err != nil {
-			t.Fatalf("WriteUDPDatagram() error = %v", err)
+			require.NoError(t, err, "WriteUDPDatagram() should not return error")
 		}
 	}
 
@@ -164,7 +170,7 @@ func TestMultipleDatagrams(t *testing.T) {
 func TestUDPSession(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:12345")
 	if err != nil {
-		t.Fatalf("ResolveUDPAddr() error = %v", err)
+		require.NoError(t, err, "ResolveUDPAddr() should not return error")
 	}
 
 	// Create a dummy cancel function
@@ -185,13 +191,13 @@ func TestUDPSession(t *testing.T) {
 	}
 
 	if time.Since(session.LastSeen) > time.Second {
-		t.Error("UDPSession LastSeen not set correctly")
+		assert.Fail(t, "UDPSession LastSeen not set correctly")
 	}
 
 	// Call cancel
 	session.Cancel()
 	if !cancelCalled {
-		t.Error("UDPSession Cancel not called")
+		assert.Fail(t, "UDPSession Cancel not called")
 	}
 }
 
@@ -207,15 +213,15 @@ func TestNewUDPListener(t *testing.T) {
 	}
 
 	if listener.listenAddr != listenAddr {
-		t.Errorf("UDPListener listenAddr = %v, want %v", listener.listenAddr, listenAddr)
+		assert.Equal(t, listenAddr, listener.listenAddr, "UDPListener listenAddr should match")
 	}
 
 	if listener.targetAddr != targetAddr {
-		t.Errorf("UDPListener targetAddr = %v, want %v", listener.targetAddr, targetAddr)
+		assert.Equal(t, targetAddr, listener.targetAddr, "UDPListener targetAddr should match")
 	}
 
 	if listener.sessions == nil {
-		t.Error("UDPListener sessions map not initialized")
+		assert.Fail(t, "UDPListener sessions map not initialized")
 	}
 }
 
@@ -240,12 +246,12 @@ func TestDatagramSizeEdgeCases(t *testing.T) {
 			var buf bytes.Buffer
 			err := WriteUDPDatagram(&buf, datagram)
 			if err != nil {
-				t.Fatalf("WriteUDPDatagram() error = %v", err)
+				require.NoError(t, err, "WriteUDPDatagram() should not return error")
 			}
 
 			dg2, err := ReadUDPDatagram(&buf)
 			if err != nil {
-				t.Fatalf("ReadUDPDatagram() error = %v", err)
+				require.NoError(t, err, "ReadUDPDatagram() should not return error")
 			}
 
 			if dg2.Length != tt.length {
@@ -293,16 +299,16 @@ func TestDatagramWithVariousDataPatterns(t *testing.T) {
 
 			var buf bytes.Buffer
 			if err := WriteUDPDatagram(&buf, datagram); err != nil {
-				t.Fatalf("WriteUDPDatagram() error = %v", err)
+				require.NoError(t, err, "WriteUDPDatagram() should not return error")
 			}
 			dg2, err := ReadUDPDatagram(&buf)
 
 			if err != nil {
-				t.Fatalf("ReadUDPDatagram() error = %v", err)
+				require.NoError(t, err, "ReadUDPDatagram() should not return error")
 			}
 
 			if !bytes.Equal(dg2.Data, tt.data) {
-				t.Error("Data pattern not preserved")
+				assert.Fail(t, "Data pattern not preserved")
 			}
 		})
 	}
@@ -341,5 +347,230 @@ func BenchmarkReadUDPDatagram(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		buf2 := bytes.NewBuffer(buf.Bytes())
 		_, _ = ReadUDPDatagram(buf2)
+	}
+}
+
+// Note: UDPToQUIC and QUICToUDP use concrete quic.Stream types which are difficult to mock
+// for unit tests. These functions are better tested in integration tests.
+// Here we test the supporting components that can be unit tested.
+
+// Test session timeout constant
+func TestSessionTimeoutValue(t *testing.T) {
+	expected := 2 * time.Minute
+	assert.Equal(t, expected, SessionTimeout, "SessionTimeout should be 2 minutes")
+}
+
+// Test buffer pool
+func TestBufferPool(t *testing.T) {
+	// Get buffer from pool
+	bufPtr1 := bufferPool.Get().(*[]byte)
+	assert.NotNil(t, bufPtr1, "Buffer pool should return buffer")
+	assert.Equal(t, 65535, len(*bufPtr1), "Buffer should be max UDP size")
+
+	// Put it back
+	bufferPool.Put(bufPtr1)
+
+	// Get another buffer
+	bufPtr2 := bufferPool.Get().(*[]byte)
+	assert.NotNil(t, bufPtr2, "Buffer pool should return buffer")
+
+	bufferPool.Put(bufPtr2)
+}
+
+// Test UDPDatagram struct
+func TestUDPDatagramStruct(t *testing.T) {
+	data := []byte("test data")
+	datagram := &UDPDatagram{
+		Length: uint16(len(data)), // #nosec G115 -- Test data is small
+		Data:   data,
+	}
+
+	assert.Equal(t, uint16(len(data)), datagram.Length)
+	assert.Equal(t, data, datagram.Data)
+}
+
+// Test UDPSession struct fields
+func TestUDPSessionFields(t *testing.T) {
+	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:54321")
+	require.NoError(t, err)
+
+	cancel := func() {}
+	now := time.Now()
+
+	session := &UDPSession{
+		RemoteAddr:  addr,
+		LastSeen:    now,
+		Cancel:      cancel,
+		Stream:      nil, // Stream is nil until first datagram
+		StreamMutex: sync.Mutex{},
+	}
+
+	assert.Equal(t, addr, session.RemoteAddr)
+	assert.Equal(t, now, session.LastSeen)
+	assert.NotNil(t, session.Cancel)
+	assert.Nil(t, session.Stream, "Stream should be nil initially")
+}
+
+// Test UDPListener creation and field initialization
+func TestNewUDPListenerCreation(t *testing.T) {
+	// Create a simple stream opener that returns nil (won't be called in this test)
+	streamOpener := func() (*quicgo.Stream, error) {
+		return nil, nil
+	}
+
+	listener := NewUDPListener("127.0.0.1:8080", "10.0.0.5:53", streamOpener)
+
+	assert.NotNil(t, listener, "Listener should not be nil")
+	assert.Equal(t, "127.0.0.1:8080", listener.listenAddr)
+	assert.Equal(t, "10.0.0.5:53", listener.targetAddr)
+	assert.NotNil(t, listener.sessions, "Sessions map should be initialized")
+	assert.NotNil(t, listener.ctx, "Context should be initialized")
+	assert.NotNil(t, listener.cancel, "Cancel function should be initialized")
+	assert.Equal(t, 0, len(listener.sessions), "Sessions should start empty")
+}
+
+// Test context cancellation propagation
+func TestContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Cancel immediately
+	cancel()
+
+	// Check that context is done
+	select {
+	case <-ctx.Done():
+		assert.NotNil(t, ctx.Err(), "Context should have error after cancellation")
+	default:
+		assert.Fail(t, "Context should be cancelled")
+	}
+}
+
+// Test UDPListener Start method
+func TestUDPListenerStartMethod(t *testing.T) {
+	streamOpener := func() (*quicgo.Stream, error) {
+		return nil, nil
+	}
+
+	listener := NewUDPListener("127.0.0.1:0", "10.0.0.5:53", streamOpener)
+
+	err := listener.Start()
+	require.NoError(t, err, "Start should succeed with port 0 (random port)")
+	assert.NotNil(t, listener.conn, "UDP connection should be created after Start")
+
+	// Verify we can get the local address
+	localAddr := listener.conn.LocalAddr()
+	assert.NotNil(t, localAddr, "Local address should be available")
+
+	// Clean up
+	err = listener.Close()
+	assert.NoError(t, err, "Close should succeed")
+}
+
+// Test UDPListener Start with invalid address
+func TestUDPListenerStartInvalid(t *testing.T) {
+	streamOpener := func() (*quicgo.Stream, error) {
+		return nil, nil
+	}
+
+	listener := NewUDPListener("invalid:address:port", "10.0.0.5:53", streamOpener)
+
+	err := listener.Start()
+	assert.Error(t, err, "Start should fail with invalid address")
+	assert.Contains(t, err.Error(), "failed to resolve UDP address", "Error should mention address resolution")
+}
+
+// Test UDPListener Close method
+func TestUDPListenerCloseMethod(t *testing.T) {
+	streamOpener := func() (*quicgo.Stream, error) {
+		return nil, nil
+	}
+
+	listener := NewUDPListener("127.0.0.1:0", "10.0.0.5:53", streamOpener)
+
+	err := listener.Start()
+	require.NoError(t, err)
+
+	err = listener.Close()
+	assert.NoError(t, err, "Close should succeed")
+
+	// Verify context is canceled
+	select {
+	case <-listener.ctx.Done():
+		// Expected - context should be done
+	default:
+		assert.Fail(t, "Context should be canceled after Close")
+	}
+}
+
+// Test UDPListener Close without Start
+func TestUDPListenerCloseBeforeStart(t *testing.T) {
+	streamOpener := func() (*quicgo.Stream, error) {
+		return nil, nil
+	}
+
+	listener := NewUDPListener("127.0.0.1:0", "10.0.0.5:53", streamOpener)
+
+	// Close without Start should not panic
+	err := listener.Close()
+	assert.NoError(t, err, "Close without Start should not error")
+}
+
+// Test UDPListener double Close
+func TestUDPListenerDoubleClose(t *testing.T) {
+	streamOpener := func() (*quicgo.Stream, error) {
+		return nil, nil
+	}
+
+	listener := NewUDPListener("127.0.0.1:0", "10.0.0.5:53", streamOpener)
+
+	err := listener.Start()
+	require.NoError(t, err)
+
+	// First close
+	err = listener.Close()
+	assert.NoError(t, err, "First Close should succeed")
+
+	// Second close (may error since connection is already closed)
+	err = listener.Close()
+	// We don't assert error here because second close on nil connection is handled
+	_ = err
+}
+
+// Test UDPListener Serve cancellation
+func TestUDPListenerServeCancellation(t *testing.T) {
+	streamOpener := func() (*quicgo.Stream, error) {
+		return nil, nil
+	}
+
+	listener := NewUDPListener("127.0.0.1:0", "10.0.0.5:53", streamOpener)
+
+	err := listener.Start()
+	require.NoError(t, err)
+
+	// Start Serve in background
+	serveDone := make(chan error, 1)
+	go func() {
+		serveDone <- listener.Serve()
+	}()
+
+	// Give Serve time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Cancel and close
+	err = listener.Close()
+	assert.NoError(t, err)
+
+	// Serve should return (may be error or nil depending on timing)
+	select {
+	case err := <-serveDone:
+		// When Close() is called, it closes the UDP connection which causes
+		// the blocking ReadFromUDP to fail with "use of closed network connection"
+		// This is expected behavior, not a test failure
+		if err != nil {
+			assert.Contains(t, err.Error(), "closed network connection",
+				"Error should be due to closed connection")
+		}
+	case <-time.After(2 * time.Second):
+		assert.Fail(t, "Serve did not return after Close")
 	}
 }

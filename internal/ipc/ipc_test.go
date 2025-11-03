@@ -7,16 +7,15 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetSocketPath(t *testing.T) {
 	path := GetSocketPath()
-	if path == "" {
-		t.Error("GetSocketPath returned empty string")
-	}
-	if !filepath.IsAbs(path) {
-		t.Error("GetSocketPath did not return absolute path")
-	}
+	assert.NotEmpty(t, path, "GetSocketPath should return non-empty string")
+	assert.True(t, filepath.IsAbs(path), "GetSocketPath should return absolute path")
 }
 
 func TestNewServer(t *testing.T) {
@@ -26,17 +25,12 @@ func TestNewServer(t *testing.T) {
 	}
 
 	server, err := NewServer(adder)
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
-	if server == nil {
-		t.Fatal("NewServer returned nil server")
-	}
+	require.NoError(t, err, "NewServer should not fail")
+	require.NotNil(t, server, "NewServer should return non-nil server")
 
 	// Clean up
-	if err := server.Close(); err != nil {
-		t.Errorf("Server.Close failed: %v", err)
-	}
+	err = server.Close()
+	assert.NoError(t, err, "Server.Close should not fail")
 }
 
 func TestServerServeAndClose(t *testing.T) {
@@ -46,9 +40,7 @@ func TestServerServeAndClose(t *testing.T) {
 	}
 
 	server, err := NewServer(adder)
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
+	require.NoError(t, err, "NewServer should not fail")
 
 	// Start server in background
 	done := make(chan error, 1)
@@ -60,44 +52,32 @@ func TestServerServeAndClose(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Close server
-	if err := server.Close(); err != nil {
-		t.Errorf("Server.Close failed: %v", err)
-	}
+	err = server.Close()
+	assert.NoError(t, err, "Server.Close should not fail")
 
 	// Wait for Serve to return
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Errorf("Serve returned error: %v", err)
-		}
+		assert.NoError(t, err, "Serve should not return error")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Serve did not return after Close")
 	}
 }
 
 func TestForwardRequestResponse(t *testing.T) {
-	// Create a mock forward adder that succeeds
+	// Create a mock forward adder that succeeds and validates request
 	successAdder := func(req ForwardRequest) error {
-		if req.Local != "127.0.0.1:8080" {
-			t.Errorf("Unexpected local address: %s", req.Local)
-		}
-		if req.Remote != "10.0.0.1:9000" {
-			t.Errorf("Unexpected remote address: %s", req.Remote)
-		}
-		if req.Proto != "tcp" {
-			t.Errorf("Unexpected protocol: %s", req.Proto)
-		}
+		assert.Equal(t, "127.0.0.1:8080", req.Local, "Local address should match")
+		assert.Equal(t, "10.0.0.1:9000", req.Remote, "Remote address should match")
+		assert.Equal(t, "tcp", req.Proto, "Protocol should match")
 		return nil
 	}
 
 	server, err := NewServer(successAdder)
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
+	require.NoError(t, err, "NewServer should not fail")
 	defer func() {
-		if err := server.Close(); err != nil {
-			t.Errorf("Server.Close failed: %v", err)
-		}
+		err := server.Close()
+		assert.NoError(t, err, "Server.Close should not fail")
 	}()
 
 	// Start server in background
@@ -116,16 +96,9 @@ func TestForwardRequestResponse(t *testing.T) {
 	}
 
 	resp, err := SendForwardRequest(req)
-	if err != nil {
-		t.Fatalf("SendForwardRequest failed: %v", err)
-	}
-
-	if !resp.Success {
-		t.Errorf("Expected success, got failure: %s", resp.Error)
-	}
-	if resp.Message == "" {
-		t.Error("Expected non-empty message")
-	}
+	require.NoError(t, err, "SendForwardRequest should not fail")
+	assert.True(t, resp.Success, "Response should indicate success")
+	assert.NotEmpty(t, resp.Message, "Response should have non-empty message")
 }
 
 func TestSendForwardRequestNoServer(t *testing.T) {
@@ -141,12 +114,8 @@ func TestSendForwardRequestNoServer(t *testing.T) {
 	_ = os.Remove(socketPath)
 
 	resp, err := SendForwardRequest(req)
-	if err == nil {
-		t.Error("Expected error when no server running, got nil")
-	}
-	if resp != nil {
-		t.Error("Expected nil response when no server running")
-	}
+	assert.Error(t, err, "SendForwardRequest should fail when no server running")
+	assert.Nil(t, resp, "Response should be nil when request fails")
 }
 
 func TestForwardRequestJSON(t *testing.T) {
@@ -158,26 +127,15 @@ func TestForwardRequestJSON(t *testing.T) {
 
 	// Marshal to JSON
 	data, err := json.Marshal(req)
-	if err != nil {
-		t.Fatalf("Failed to marshal ForwardRequest: %v", err)
-	}
+	require.NoError(t, err, "Marshal should not fail")
 
 	// Unmarshal from JSON
 	var req2 ForwardRequest
-	if err := json.Unmarshal(data, &req2); err != nil {
-		t.Fatalf("Failed to unmarshal ForwardRequest: %v", err)
-	}
+	err = json.Unmarshal(data, &req2)
+	require.NoError(t, err, "Unmarshal should not fail")
 
-	// Verify fields
-	if req2.Local != req.Local {
-		t.Errorf("Local mismatch: got %s, want %s", req2.Local, req.Local)
-	}
-	if req2.Remote != req.Remote {
-		t.Errorf("Remote mismatch: got %s, want %s", req2.Remote, req.Remote)
-	}
-	if req2.Proto != req.Proto {
-		t.Errorf("Proto mismatch: got %s, want %s", req2.Proto, req.Proto)
-	}
+	// Verify fields match
+	assert.Equal(t, req, req2, "Marshaled and unmarshaled request should be equal")
 }
 
 func TestForwardResponseJSON(t *testing.T) {
@@ -188,23 +146,15 @@ func TestForwardResponseJSON(t *testing.T) {
 
 	// Marshal to JSON
 	data, err := json.Marshal(resp)
-	if err != nil {
-		t.Fatalf("Failed to marshal ForwardResponse: %v", err)
-	}
+	require.NoError(t, err, "Marshal should not fail")
 
 	// Unmarshal from JSON
 	var resp2 ForwardResponse
-	if err := json.Unmarshal(data, &resp2); err != nil {
-		t.Fatalf("Failed to unmarshal ForwardResponse: %v", err)
-	}
+	err = json.Unmarshal(data, &resp2)
+	require.NoError(t, err, "Unmarshal should not fail")
 
-	// Verify fields
-	if resp2.Success != resp.Success {
-		t.Errorf("Success mismatch: got %v, want %v", resp2.Success, resp.Success)
-	}
-	if resp2.Message != resp.Message {
-		t.Errorf("Message mismatch: got %s, want %s", resp2.Message, resp.Message)
-	}
+	// Verify fields match
+	assert.Equal(t, resp, resp2, "Marshaled and unmarshaled response should be equal")
 }
 
 func TestServerHandleInvalidJSON(t *testing.T) {
@@ -214,13 +164,10 @@ func TestServerHandleInvalidJSON(t *testing.T) {
 	}
 
 	server, err := NewServer(adder)
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
+	require.NoError(t, err, "NewServer should not fail")
 	defer func() {
-		if err := server.Close(); err != nil {
-			t.Errorf("Server.Close failed: %v", err)
-		}
+		err := server.Close()
+		assert.NoError(t, err, "Server.Close should not fail")
 	}()
 
 	// Start server in background
@@ -233,33 +180,22 @@ func TestServerHandleInvalidJSON(t *testing.T) {
 
 	// Connect and send invalid JSON
 	conn, err := net.Dial("unix", GetSocketPath())
-	if err != nil {
-		t.Fatalf("Failed to connect: %v", err)
-	}
+	require.NoError(t, err, "Should connect to server")
 	defer func() {
-		if closeErr := conn.Close(); closeErr != nil {
-			t.Errorf("Failed to close connection: %v", closeErr)
-		}
+		_ = conn.Close()
 	}()
 
 	// Send invalid JSON
 	_, err = conn.Write([]byte("{invalid json"))
-	if err != nil {
-		t.Fatalf("Failed to write: %v", err)
-	}
+	require.NoError(t, err, "Write should not fail")
 
 	// Read response
 	decoder := json.NewDecoder(conn)
 	var resp ForwardResponse
-	if err := decoder.Decode(&resp); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
+	err = decoder.Decode(&resp)
+	require.NoError(t, err, "Should decode error response")
 
 	// Should get error response
-	if resp.Success {
-		t.Error("Expected failure for invalid JSON, got success")
-	}
-	if resp.Error == "" {
-		t.Error("Expected error message for invalid JSON")
-	}
+	assert.False(t, resp.Success, "Response should indicate failure for invalid JSON")
+	assert.NotEmpty(t, resp.Error, "Response should contain error message")
 }

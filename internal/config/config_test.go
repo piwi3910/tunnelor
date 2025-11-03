@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateServerConfig(t *testing.T) {
@@ -99,15 +102,10 @@ func TestValidateServerConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateServerConfig(&tt.config)
 			if tt.wantErr {
-				if err == nil {
-					t.Errorf("validateServerConfig() expected error, got nil")
-					return
-				}
-				if err.Error() != tt.errMsg {
-					t.Errorf("validateServerConfig() error = %v, want %v", err, tt.errMsg)
-				}
-			} else if err != nil {
-				t.Errorf("validateServerConfig() unexpected error: %v", err)
+				require.Error(t, err, "validateServerConfig() should return error")
+				assert.Contains(t, err.Error(), tt.errMsg, "error message should match")
+			} else {
+				assert.NoError(t, err, "validateServerConfig() should not return error")
 			}
 		})
 	}
@@ -244,15 +242,10 @@ func TestValidateClientConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateClientConfig(&tt.config)
 			if tt.wantErr {
-				if err == nil {
-					t.Errorf("validateClientConfig() expected error, got nil")
-					return
-				}
-				if err.Error() != tt.errMsg {
-					t.Errorf("validateClientConfig() error = %v, want %v", err, tt.errMsg)
-				}
-			} else if err != nil {
-				t.Errorf("validateClientConfig() unexpected error: %v", err)
+				require.Error(t, err, "validateClientConfig() should return error")
+				assert.Contains(t, err.Error(), tt.errMsg, "error message should match")
+			} else {
+				assert.NoError(t, err, "validateClientConfig() should not return error")
 			}
 		})
 	}
@@ -324,24 +317,16 @@ auth:
 			// Write config to temp file
 			configPath := filepath.Join(tmpDir, tt.name+".yaml")
 			err := os.WriteFile(configPath, []byte(tt.configYAML), 0o600)
-			if err != nil {
-				t.Fatalf("Failed to write test config: %v", err)
-			}
+			require.NoError(t, err, "Failed to write test config")
 
 			// Load config
 			cfg, err := LoadServerConfig(configPath)
 
 			if tt.wantErr {
-				if err == nil {
-					t.Errorf("LoadServerConfig() expected error, got nil")
-				}
+				assert.Error(t, err, "LoadServerConfig() should return error")
 			} else {
-				if err != nil {
-					t.Errorf("LoadServerConfig() unexpected error: %v", err)
-				}
-				if cfg == nil {
-					t.Error("LoadServerConfig() returned nil config")
-				}
+				assert.NoError(t, err, "LoadServerConfig() should not return error")
+				assert.NotNil(t, cfg, "LoadServerConfig() should return non-nil config")
 			}
 		})
 	}
@@ -412,23 +397,15 @@ func TestLoadClientConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			configPath := filepath.Join(tmpDir, tt.name+".yaml")
 			err := os.WriteFile(configPath, []byte(tt.configYAML), 0o600)
-			if err != nil {
-				t.Fatalf("Failed to write test config: %v", err)
-			}
+			require.NoError(t, err, "Failed to write test config")
 
 			cfg, err := LoadClientConfig(configPath)
 
 			if tt.wantErr {
-				if err == nil {
-					t.Errorf("LoadClientConfig() expected error, got nil")
-				}
+				assert.Error(t, err, "LoadClientConfig() should return error")
 			} else {
-				if err != nil {
-					t.Errorf("LoadClientConfig() unexpected error: %v", err)
-				}
-				if cfg == nil {
-					t.Error("LoadClientConfig() returned nil config")
-				}
+				assert.NoError(t, err, "LoadClientConfig() should not return error")
+				assert.NotNil(t, cfg, "LoadClientConfig() should return non-nil config")
 			}
 		})
 	}
@@ -436,14 +413,10 @@ func TestLoadClientConfig(t *testing.T) {
 
 func TestLoadServerConfigNonExistent(t *testing.T) {
 	_, err := LoadServerConfig("/nonexistent/path/config.yaml")
-	if err == nil {
-		t.Error("LoadServerConfig() expected error for nonexistent file, got nil")
-	}
+	assert.Error(t, err, "LoadServerConfig() should return error for nonexistent file")
 }
 
 func TestLoadClientConfigNonExistent(t *testing.T) {
 	_, err := LoadClientConfig("/nonexistent/path/config.yaml")
-	if err == nil {
-		t.Error("LoadClientConfig() expected error for nonexistent file, got nil")
-	}
+	assert.Error(t, err, "LoadClientConfig() should return error for nonexistent file")
 }

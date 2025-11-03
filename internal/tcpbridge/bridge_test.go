@@ -8,7 +8,10 @@ import (
 	"strings"
 	"testing"
 	"time"
-)
+
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require")
 
 // mockReadWriteCloser implements io.ReadWriteCloser for testing
 type mockReadWriteCloser struct {
@@ -78,7 +81,7 @@ func TestBidirectionalCopy(t *testing.T) {
 		// In real scenario, data from conn1 would be in conn2 and vice versa
 
 	case <-time.After(2 * time.Second):
-		t.Fatal("BidirectionalCopy() timeout")
+		require.Fail(t, "BidirectionalCopy() timeout")
 	}
 }
 
@@ -149,7 +152,7 @@ func TestBidirectionalCopyWithPipe(t *testing.T) {
 	case err := <-errorChan:
 		t.Fatalf("Test failed: %v", err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("Test timeout")
+		require.Fail(t, "Test timeout")
 	}
 
 	// Close remaining connections
@@ -216,7 +219,7 @@ func TestBidirectionalCopyLargeData(t *testing.T) {
 			t.Fatalf("Copy failed: %v", err)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("Copy timeout")
+		require.Fail(t, "Copy timeout")
 	}
 
 	// Verify data
@@ -226,7 +229,7 @@ func TestBidirectionalCopyLargeData(t *testing.T) {
 	}
 
 	if !bytes.Equal(testData, receivedData) {
-		t.Error("Data mismatch after large transfer")
+		assert.Fail(t, "Data mismatch after large transfer")
 		// Find first mismatch for debugging
 		for i := 0; i < len(testData) && i < len(receivedData); i++ {
 			if testData[i] != receivedData[i] {

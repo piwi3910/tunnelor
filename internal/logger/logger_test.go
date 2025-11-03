@@ -5,22 +5,15 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.Level != InfoLevel {
-		t.Errorf("Expected default level to be InfoLevel, got %s", cfg.Level)
-	}
-
-	if cfg.Pretty {
-		t.Error("Expected default Pretty to be false")
-	}
-
-	if cfg.TimeFormat != time.RFC3339 {
-		t.Errorf("Expected default TimeFormat to be RFC3339, got %s", cfg.TimeFormat)
-	}
+	assert.Equal(t, InfoLevel, cfg.Level, "Expected default level to be InfoLevel")
+	assert.False(t, cfg.Pretty, "Expected default Pretty to be false")
+	assert.Equal(t, time.RFC3339, cfg.TimeFormat, "Expected default TimeFormat to be RFC3339")
 }
 
 func TestParseLevel(t *testing.T) {
@@ -59,9 +52,7 @@ func TestParseLevel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := parseLevel(tt.level)
-			if result != tt.expected {
-				t.Errorf("parseLevel(%s) = %v, expected %v", tt.level, result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result, "parseLevel(%s) should return expected value", tt.level)
 		})
 	}
 }
@@ -111,16 +102,12 @@ func TestSetup(t *testing.T) {
 			Setup(tt.config)
 
 			// Verify global level was set
-			if zerolog.GlobalLevel() != parseLevel(tt.config.Level) {
-				t.Errorf("Global level not set correctly, expected %v, got %v",
-					parseLevel(tt.config.Level), zerolog.GlobalLevel())
-			}
+			assert.Equal(t, parseLevel(tt.config.Level), zerolog.GlobalLevel(),
+				"Global level should be set correctly")
 
 			// Verify time format was set
-			if zerolog.TimeFieldFormat != tt.config.TimeFormat {
-				t.Errorf("TimeFieldFormat not set correctly, expected %s, got %s",
-					tt.config.TimeFormat, zerolog.TimeFieldFormat)
-			}
+			assert.Equal(t, tt.config.TimeFormat, zerolog.TimeFieldFormat,
+				"TimeFieldFormat should be set correctly")
 		})
 	}
 }
@@ -138,9 +125,7 @@ func TestWithContext(t *testing.T) {
 	logger := WithContext(fields)
 
 	// Logger should not be nil
-	if logger.GetLevel() == zerolog.Disabled {
-		t.Error("Expected logger to be enabled")
-	}
+	assert.NotEqual(t, zerolog.Disabled, logger.GetLevel(), "Expected logger to be enabled")
 }
 
 func TestWithClientID(t *testing.T) {
@@ -149,9 +134,7 @@ func TestWithClientID(t *testing.T) {
 	clientID := "test-client-123"
 	logger := WithClientID(clientID)
 
-	if logger.GetLevel() == zerolog.Disabled {
-		t.Error("Expected logger to be enabled")
-	}
+	assert.NotEqual(t, zerolog.Disabled, logger.GetLevel(), "Expected logger to be enabled")
 }
 
 func TestWithStreamID(t *testing.T) {
@@ -160,9 +143,7 @@ func TestWithStreamID(t *testing.T) {
 	streamID := uint64(12345)
 	logger := WithStreamID(streamID)
 
-	if logger.GetLevel() == zerolog.Disabled {
-		t.Error("Expected logger to be enabled")
-	}
+	assert.NotEqual(t, zerolog.Disabled, logger.GetLevel(), "Expected logger to be enabled")
 }
 
 func TestWithProto(t *testing.T) {
@@ -171,9 +152,7 @@ func TestWithProto(t *testing.T) {
 	proto := "tcp"
 	logger := WithProto(proto)
 
-	if logger.GetLevel() == zerolog.Disabled {
-		t.Error("Expected logger to be enabled")
-	}
+	assert.NotEqual(t, zerolog.Disabled, logger.GetLevel(), "Expected logger to be enabled")
 }
 
 func TestWithAddresses(t *testing.T) {
@@ -183,7 +162,5 @@ func TestWithAddresses(t *testing.T) {
 	remote := "10.0.0.5:9000"
 	logger := WithAddresses(local, remote)
 
-	if logger.GetLevel() == zerolog.Disabled {
-		t.Error("Expected logger to be enabled")
-	}
+	assert.NotEqual(t, zerolog.Disabled, logger.GetLevel(), "Expected logger to be enabled")
 }

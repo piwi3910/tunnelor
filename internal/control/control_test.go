@@ -6,6 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -18,23 +21,13 @@ const (
 
 func TestGenerateNonce(t *testing.T) {
 	nonce1, err := GenerateNonce()
-	if err != nil {
-		t.Fatalf("GenerateNonce() error = %v", err)
-	}
-
-	if len(nonce1) != 32 { // 16 bytes = 32 hex chars
-		t.Errorf("GenerateNonce() length = %d, want 32", len(nonce1))
-	}
+	require.NoError(t, err, "GenerateNonce() should not return error")
+	assert.Equal(t, 32, len(nonce1), "GenerateNonce() length should be 32") // 16 bytes = 32 hex chars
 
 	// Generate another and ensure they're different
 	nonce2, err := GenerateNonce()
-	if err != nil {
-		t.Fatalf("GenerateNonce() error = %v", err)
-	}
-
-	if nonce1 == nonce2 {
-		t.Error("GenerateNonce() generated same nonce twice")
-	}
+	require.NoError(t, err, "GenerateNonce() should not return error")
+	assert.NotEqual(t, nonce1, nonce2, "GenerateNonce() should generate different nonces")
 }
 
 func TestComputeHMAC(t *testing.T) {
@@ -43,40 +36,23 @@ func TestComputeHMAC(t *testing.T) {
 	message := "test message"
 
 	hmac1, err := ComputeHMAC(key, message)
-	if err != nil {
-		t.Fatalf("ComputeHMAC() error = %v", err)
-	}
-
-	if hmac1 == "" {
-		t.Error("ComputeHMAC() returned empty string")
-	}
+	require.NoError(t, err, "ComputeHMAC() should not return error")
+	assert.NotEmpty(t, hmac1, "ComputeHMAC() should not return empty string")
 
 	// Computing same HMAC should give same result
 	hmac2, err := ComputeHMAC(key, message)
-	if err != nil {
-		t.Fatalf("ComputeHMAC() error = %v", err)
-	}
-
-	if hmac1 != hmac2 {
-		t.Error("ComputeHMAC() not deterministic")
-	}
+	require.NoError(t, err, "ComputeHMAC() should not return error")
+	assert.Equal(t, hmac1, hmac2, "ComputeHMAC() should be deterministic")
 
 	// Different message should give different HMAC
 	hmac3, err := ComputeHMAC(key, "different message")
-	if err != nil {
-		t.Fatalf("ComputeHMAC() error = %v", err)
-	}
-
-	if hmac1 == hmac3 {
-		t.Error("ComputeHMAC() same for different messages")
-	}
+	require.NoError(t, err, "ComputeHMAC() should not return error")
+	assert.NotEqual(t, hmac1, hmac3, "ComputeHMAC() should differ for different messages")
 }
 
 func TestComputeHMACInvalidKey(t *testing.T) {
 	_, err := ComputeHMAC("invalid-base64!!!", "message")
-	if err == nil {
-		t.Error("ComputeHMAC() expected error for invalid base64 key")
-	}
+	assert.Error(t, err, "ComputeHMAC() should return error for invalid base64 key")
 }
 
 func TestVerifyHMAC(t *testing.T) {
@@ -84,36 +60,22 @@ func TestVerifyHMAC(t *testing.T) {
 	message := "test message"
 
 	hmac, err := ComputeHMAC(key, message)
-	if err != nil {
-		t.Fatalf("ComputeHMAC() error = %v", err)
-	}
+	require.NoError(t, err, "ComputeHMAC() should not return error")
 
 	// Verify should succeed with correct HMAC
 	valid, err := VerifyHMAC(key, message, hmac)
-	if err != nil {
-		t.Fatalf("VerifyHMAC() error = %v", err)
-	}
-	if !valid {
-		t.Error("VerifyHMAC() = false, want true")
-	}
+	require.NoError(t, err, "VerifyHMAC() should not return error")
+	assert.True(t, valid, "VerifyHMAC() should return true for correct HMAC")
 
 	// Verify should fail with incorrect HMAC
 	valid, err = VerifyHMAC(key, message, "wrong-hmac")
-	if err != nil {
-		t.Fatalf("VerifyHMAC() error = %v", err)
-	}
-	if valid {
-		t.Error("VerifyHMAC() = true for wrong HMAC, want false")
-	}
+	require.NoError(t, err, "VerifyHMAC() should not return error")
+	assert.False(t, valid, "VerifyHMAC() should return false for wrong HMAC")
 
 	// Verify should fail with different message
 	valid, err = VerifyHMAC(key, "different message", hmac)
-	if err != nil {
-		t.Fatalf("VerifyHMAC() error = %v", err)
-	}
-	if valid {
-		t.Error("VerifyHMAC() = true for different message, want false")
-	}
+	require.NoError(t, err, "VerifyHMAC() should not return error")
+	assert.False(t, valid, "VerifyHMAC() should return false for different message")
 }
 
 func TestCreateAuthPayload(t *testing.T) {
@@ -123,9 +85,7 @@ func TestCreateAuthPayload(t *testing.T) {
 	payload := CreateAuthPayload(clientID, nonce)
 	expected := testClientID + "|" + testPSK
 
-	if payload != expected {
-		t.Errorf("CreateAuthPayload() = %v, want %v", payload, expected)
-	}
+	assert.Equal(t, expected, payload, "CreateAuthPayload() should return expected value")
 }
 
 func TestComputeAuthHMAC(t *testing.T) {
@@ -134,13 +94,8 @@ func TestComputeAuthHMAC(t *testing.T) {
 	nonce := testPSK
 
 	hmac, err := ComputeAuthHMAC(psk, clientID, nonce)
-	if err != nil {
-		t.Fatalf("ComputeAuthHMAC() error = %v", err)
-	}
-
-	if hmac == "" {
-		t.Error("ComputeAuthHMAC() returned empty string")
-	}
+	require.NoError(t, err, "ComputeAuthHMAC() should not return error")
+	assert.NotEmpty(t, hmac, "ComputeAuthHMAC() should not return empty string")
 }
 
 func TestVerifyAuthHMAC(t *testing.T) {
@@ -149,36 +104,22 @@ func TestVerifyAuthHMAC(t *testing.T) {
 	nonce := testPSK
 
 	hmac, err := ComputeAuthHMAC(psk, clientID, nonce)
-	if err != nil {
-		t.Fatalf("ComputeAuthHMAC() error = %v", err)
-	}
+	require.NoError(t, err, "ComputeAuthHMAC() should not return error")
 
 	// Verify should succeed
 	valid, err := VerifyAuthHMAC(psk, clientID, nonce, hmac)
-	if err != nil {
-		t.Fatalf("VerifyAuthHMAC() error = %v", err)
-	}
-	if !valid {
-		t.Error("VerifyAuthHMAC() = false, want true")
-	}
+	require.NoError(t, err, "VerifyAuthHMAC() should not return error")
+	assert.True(t, valid, "VerifyAuthHMAC() should return true for correct HMAC")
 
 	// Verify should fail with wrong HMAC
 	valid, err = VerifyAuthHMAC(psk, clientID, nonce, "wrong-hmac")
-	if err != nil {
-		t.Fatalf("VerifyAuthHMAC() error = %v", err)
-	}
-	if valid {
-		t.Error("VerifyAuthHMAC() = true for wrong HMAC, want false")
-	}
+	require.NoError(t, err, "VerifyAuthHMAC() should not return error")
+	assert.False(t, valid, "VerifyAuthHMAC() should return false for wrong HMAC")
 
 	// Verify should fail with wrong client ID
 	valid, err = VerifyAuthHMAC(psk, "wrong-client", nonce, hmac)
-	if err != nil {
-		t.Fatalf("VerifyAuthHMAC() error = %v", err)
-	}
-	if valid {
-		t.Error("VerifyAuthHMAC() = true for wrong client ID, want false")
-	}
+	require.NoError(t, err, "VerifyAuthHMAC() should not return error")
+	assert.False(t, valid, "VerifyAuthHMAC() should return false for wrong client ID")
 }
 
 // Test messages.go functions
@@ -219,14 +160,11 @@ func TestNewMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			msg, err := NewMessage(tt.msgType, tt.data)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NewMessage() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr {
-				if msg.Type != tt.msgType {
-					t.Errorf("NewMessage() type = %v, want %v", msg.Type, tt.msgType)
-				}
+			if tt.wantErr {
+				assert.Fail(t, "NewMessage() should return error")
+			} else {
+				require.NoError(t, err, "NewMessage() should not return error")
+				assert.Equal(t, tt.msgType, msg.Type, "NewMessage() type should match")
 			}
 		})
 	}
@@ -240,37 +178,27 @@ func TestMessageParseData(t *testing.T) {
 	}
 
 	msg, err := NewMessage(MessageTypeAuth, authData)
-	if err != nil {
-		t.Fatalf("NewMessage() error = %v", err)
-	}
+	require.NoError(t, err, "NewMessage() should not return error")
 
 	var parsed AuthMessage
 	err = msg.ParseData(&parsed)
-	if err != nil {
-		t.Fatalf("ParseData() error = %v", err)
-	}
+	require.NoError(t, err, "ParseData() should not return error")
 
-	if parsed.ClientID != authData.ClientID {
-		t.Errorf("ParseData() ClientID = %v, want %v", parsed.ClientID, authData.ClientID)
-	}
-	if parsed.Nonce != authData.Nonce {
-		t.Errorf("ParseData() Nonce = %v, want %v", parsed.Nonce, authData.Nonce)
-	}
-	if parsed.HMAC != authData.HMAC {
-		t.Errorf("ParseData() HMAC = %v, want %v", parsed.HMAC, authData.HMAC)
-	}
+	assert.Equal(t, authData.ClientID, parsed.ClientID, "ParseData() ClientID should match")
+	assert.Equal(t, authData.Nonce, parsed.Nonce, "ParseData() Nonce should match")
+	assert.Equal(t, authData.HMAC, parsed.HMAC, "ParseData() HMAC should match")
 }
 
 func TestMessageParseDataNoData(t *testing.T) {
 	msg, err := NewMessage(MessageTypePing, nil)
 	if err != nil {
-		t.Fatalf("NewMessage() error = %v", err)
+		require.NoError(t, err, "NewMessage() should not return error")
 	}
 
 	var parsed PingMessage
 	err = msg.ParseData(&parsed)
 	if err == nil {
-		t.Error("ParseData() expected error for message with no data")
+		assert.Fail(t, "ParseData() expected error for message with no data")
 	}
 }
 
@@ -283,45 +211,45 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 
 	msg, err := NewMessage(MessageTypeAuth, authData)
 	if err != nil {
-		t.Fatalf("NewMessage() error = %v", err)
+		require.NoError(t, err, "NewMessage() should not return error")
 	}
 
 	// Marshal
 	data, err := msg.Marshal()
 	if err != nil {
-		t.Fatalf("Marshal() error = %v", err)
+		require.NoError(t, err, "Marshal() should not return error")
 	}
 
 	if len(data) == 0 {
-		t.Error("Marshal() returned empty data")
+		assert.Fail(t, "Marshal() returned empty data")
 	}
 
 	// Unmarshal
 	msg2, err := UnmarshalMessage(data)
 	if err != nil {
-		t.Fatalf("UnmarshalMessage() error = %v", err)
+		require.NoError(t, err, "UnmarshalMessage() should not return error")
 	}
 
 	if msg2.Type != msg.Type {
-		t.Errorf("UnmarshalMessage() Type = %v, want %v", msg2.Type, msg.Type)
+		assert.Equal(t, msg.Type, msg2.Type, "UnmarshalMessage() Type should match expected value")
 	}
 
 	// Parse data
 	var parsed AuthMessage
 	err = msg2.ParseData(&parsed)
 	if err != nil {
-		t.Fatalf("ParseData() error = %v", err)
+		require.NoError(t, err, "ParseData() should not return error")
 	}
 
 	if parsed.ClientID != authData.ClientID {
-		t.Errorf("Parsed ClientID = %v, want %v", parsed.ClientID, authData.ClientID)
+		assert.Equal(t, authData.ClientID, parsed.ClientID, "Parsed ClientID should match expected value")
 	}
 }
 
 func TestUnmarshalMessageInvalid(t *testing.T) {
 	_, err := UnmarshalMessage([]byte("invalid json"))
 	if err == nil {
-		t.Error("UnmarshalMessage() expected error for invalid JSON")
+		assert.Fail(t, "UnmarshalMessage() expected error for invalid JSON")
 	}
 }
 
@@ -359,7 +287,7 @@ func TestWriteReadMessageBuffered(t *testing.T) {
 
 	msg, err := NewMessage(MessageTypeAuth, authData)
 	if err != nil {
-		t.Fatalf("NewMessage() error = %v", err)
+		require.NoError(t, err, "NewMessage() should not return error")
 	}
 
 	// Create buffer
@@ -370,28 +298,28 @@ func TestWriteReadMessageBuffered(t *testing.T) {
 	// Write message
 	err = WriteMessageBuffered(writer, msg)
 	if err != nil {
-		t.Fatalf("WriteMessageBuffered() error = %v", err)
+		require.NoError(t, err, "WriteMessageBuffered() should not return error")
 	}
 
 	// Read message
 	msg2, err := ReadMessageBuffered(reader)
 	if err != nil {
-		t.Fatalf("ReadMessageBuffered() error = %v", err)
+		require.NoError(t, err, "ReadMessageBuffered() should not return error")
 	}
 
 	if msg2.Type != msg.Type {
-		t.Errorf("ReadMessageBuffered() Type = %v, want %v", msg2.Type, msg.Type)
+		assert.Equal(t, msg.Type, msg2.Type, "ReadMessageBuffered() Type should match expected value")
 	}
 
 	// Parse data
 	var parsed AuthMessage
 	err = msg2.ParseData(&parsed)
 	if err != nil {
-		t.Fatalf("ParseData() error = %v", err)
+		require.NoError(t, err, "ParseData() should not return error")
 	}
 
 	if parsed.ClientID != authData.ClientID {
-		t.Errorf("Parsed ClientID = %v, want %v", parsed.ClientID, authData.ClientID)
+		assert.Equal(t, authData.ClientID, parsed.ClientID, "Parsed ClientID should match expected value")
 	}
 }
 
@@ -412,7 +340,7 @@ func TestWriteMessageBufferedTooLarge(t *testing.T) {
 
 	err := WriteMessageBuffered(writer, msg)
 	if err == nil {
-		t.Error("WriteMessageBuffered() expected error for message too large")
+		assert.Fail(t, "WriteMessageBuffered() expected error for message too large")
 	}
 }
 
@@ -437,7 +365,7 @@ func TestReadMessageBufferedTooLarge(t *testing.T) {
 	reader := bufio.NewReader(&buf)
 	_, err := ReadMessageBuffered(reader)
 	if err == nil {
-		t.Error("ReadMessageBuffered() expected error for message too large")
+		assert.Fail(t, "ReadMessageBuffered() expected error for message too large")
 	}
 }
 
@@ -447,7 +375,7 @@ func TestReadMessageBufferedEOF(t *testing.T) {
 
 	_, err := ReadMessageBuffered(reader)
 	if err == nil {
-		t.Error("ReadMessageBuffered() expected EOF error")
+		assert.Fail(t, "ReadMessageBuffered() expected EOF error")
 	}
 }
 
@@ -465,11 +393,11 @@ func TestMultipleMessagesBuffered(t *testing.T) {
 	for _, msgType := range messages {
 		msg, err := NewMessage(msgType, nil)
 		if err != nil {
-			t.Fatalf("NewMessage() error = %v", err)
+			require.NoError(t, err, "NewMessage() should not return error")
 		}
 		err = WriteMessageBuffered(writer, msg)
 		if err != nil {
-			t.Fatalf("WriteMessageBuffered() error = %v", err)
+			require.NoError(t, err, "WriteMessageBuffered() should not return error")
 		}
 	}
 
@@ -478,10 +406,10 @@ func TestMultipleMessagesBuffered(t *testing.T) {
 	for i, expectedType := range messages {
 		msg, err := ReadMessageBuffered(reader)
 		if err != nil {
-			t.Fatalf("ReadMessageBuffered() message %d error = %v", i, err)
+			require.NoErrorf(t, err, "ReadMessageBuffered() message %d should not error", i)
 		}
 		if msg.Type != expectedType {
-			t.Errorf("Message %d Type = %v, want %v", i, msg.Type, expectedType)
+			assert.Equal(t, msg.Type, expectedType, i, "Message %d Type should match expected value")
 		}
 	}
 }
@@ -494,13 +422,13 @@ func TestNewClientHandler(t *testing.T) {
 	handler := NewClientHandler(clientID, psk, nil)
 
 	if handler == nil {
-		t.Fatal("NewClientHandler() returned nil")
+		require.Fail(t, "NewClientHandler() returned nil")
 	}
 	if handler.clientID != clientID {
-		t.Errorf("clientID = %v, want %v", handler.clientID, clientID)
+		assert.Equal(t, clientID, handler.clientID, "clientID should match expected value")
 	}
 	if handler.psk != psk {
-		t.Errorf("psk = %v, want %v", handler.psk, psk)
+		assert.Equal(t, psk, handler.psk, "psk should match expected value")
 	}
 	if handler.sessionID != "" {
 		t.Errorf("sessionID should be empty, got %v", handler.sessionID)
@@ -528,15 +456,11 @@ func TestClientHandlerIsAuthenticated(t *testing.T) {
 	handler := NewClientHandler("test", "psk", nil)
 
 	// Initially should be false
-	if handler.IsAuthenticated() {
-		t.Error("IsAuthenticated() = true, want false")
-	}
+	assert.False(t, handler.IsAuthenticated(), "IsAuthenticated() should be false initially")
 
 	// Set session ID to simulate authentication
 	handler.sessionID = testSessionID
-	if !handler.IsAuthenticated() {
-		t.Error("IsAuthenticated() = false, want true after setting sessionID")
-	}
+	assert.True(t, handler.IsAuthenticated(), "IsAuthenticated() should be true after setting sessionID")
 }
 
 // TestNewServerHandler tests the ServerHandler constructor
@@ -549,13 +473,13 @@ func TestNewServerHandler(t *testing.T) {
 	handler := NewServerHandler(pskMap, nil)
 
 	if handler == nil {
-		t.Fatal("NewServerHandler() returned nil")
+		require.Fail(t, "NewServerHandler() returned nil")
 	}
 	if len(handler.pskMap) != 2 {
 		t.Errorf("pskMap length = %v, want 2", len(handler.pskMap))
 	}
 	if handler.sessions == nil {
-		t.Error("sessions map should be initialized")
+		assert.Fail(t, "sessions map should be initialized")
 	}
 	if len(handler.sessions) != 0 {
 		t.Errorf("sessions should be empty initially, got %v", len(handler.sessions))
@@ -587,7 +511,7 @@ func TestServerHandlerSessionManagement(t *testing.T) {
 	// Test GetSession
 	retrieved, ok := handler.GetSession("session-123")
 	if !ok {
-		t.Error("GetSession() should return true for existing session")
+		assert.Fail(t, "GetSession() should return true for existing session")
 	}
 	if retrieved.SessionID != "session-123" {
 		t.Errorf("GetSession() SessionID = %v, want session-123", retrieved.SessionID)
@@ -596,7 +520,7 @@ func TestServerHandlerSessionManagement(t *testing.T) {
 	// Test GetSession for non-existent session
 	_, ok = handler.GetSession("nonexistent")
 	if ok {
-		t.Error("GetSession() should return false for non-existent session")
+		assert.Fail(t, "GetSession() should return false for non-existent session")
 	}
 
 	// Test RemoveSession
@@ -608,7 +532,7 @@ func TestServerHandlerSessionManagement(t *testing.T) {
 	// Verify session is actually removed
 	_, ok = handler.GetSession("session-123")
 	if ok {
-		t.Error("GetSession() should return false after RemoveSession()")
+		assert.Fail(t, "GetSession() should return false after RemoveSession()")
 	}
 }
 
@@ -642,7 +566,7 @@ func TestServerHandlerMultipleSessions(t *testing.T) {
 			t.Errorf("GetSession(%s) should exist", s.SessionID)
 		}
 		if retrieved.ClientID != s.ClientID {
-			t.Errorf("GetSession(%s).ClientID = %v, want %v", s.SessionID, retrieved.ClientID, s.ClientID)
+			assert.Equal(t, retrieved.ClientID, s.ClientID, s.SessionID, "GetSession(%s).ClientID should match expected value")
 		}
 	}
 
@@ -655,16 +579,16 @@ func TestServerHandlerMultipleSessions(t *testing.T) {
 	// Verify removed session is gone
 	_, ok := handler.GetSession("session-2")
 	if ok {
-		t.Error("Removed session should not be retrievable")
+		assert.Fail(t, "Removed session should not be retrievable")
 	}
 
 	// Other sessions should still exist
 	_, ok = handler.GetSession("session-1")
 	if !ok {
-		t.Error("session-1 should still exist")
+		assert.Fail(t, "session-1 should still exist")
 	}
 	_, ok = handler.GetSession("session-3")
 	if !ok {
-		t.Error("session-3 should still exist")
+		assert.Fail(t, "session-3 should still exist")
 	}
 }
