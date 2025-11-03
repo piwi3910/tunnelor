@@ -8,6 +8,12 @@ import (
 	"testing"
 )
 
+const (
+	testClientID  = "test-client"
+	testPSK       = "abc123"
+	testSessionID = "test-session-123"
+)
+
 // Test auth.go functions
 
 func TestGenerateNonce(t *testing.T) {
@@ -111,11 +117,11 @@ func TestVerifyHMAC(t *testing.T) {
 }
 
 func TestCreateAuthPayload(t *testing.T) {
-	clientID := "test-client"
-	nonce := "abc123"
+	clientID := testClientID
+	nonce := testPSK
 
 	payload := CreateAuthPayload(clientID, nonce)
-	expected := "test-client|abc123"
+	expected := testClientID + "|" + testPSK
 
 	if payload != expected {
 		t.Errorf("CreateAuthPayload() = %v, want %v", payload, expected)
@@ -124,8 +130,8 @@ func TestCreateAuthPayload(t *testing.T) {
 
 func TestComputeAuthHMAC(t *testing.T) {
 	psk := base64.StdEncoding.EncodeToString([]byte("test-secret"))
-	clientID := "test-client"
-	nonce := "abc123"
+	clientID := testClientID
+	nonce := testPSK
 
 	hmac, err := ComputeAuthHMAC(psk, clientID, nonce)
 	if err != nil {
@@ -139,8 +145,8 @@ func TestComputeAuthHMAC(t *testing.T) {
 
 func TestVerifyAuthHMAC(t *testing.T) {
 	psk := base64.StdEncoding.EncodeToString([]byte("test-secret"))
-	clientID := "test-client"
-	nonce := "abc123"
+	clientID := testClientID
+	nonce := testPSK
 
 	hmac, err := ComputeAuthHMAC(psk, clientID, nonce)
 	if err != nil {
@@ -228,7 +234,7 @@ func TestNewMessage(t *testing.T) {
 
 func TestMessageParseData(t *testing.T) {
 	authData := &AuthMessage{
-		ClientID: "test-client",
+		ClientID: testClientID,
 		Nonce:    "abc123",
 		HMAC:     "hmac-value",
 	}
@@ -270,7 +276,7 @@ func TestMessageParseDataNoData(t *testing.T) {
 
 func TestMessageMarshalUnmarshal(t *testing.T) {
 	authData := &AuthMessage{
-		ClientID: "test-client",
+		ClientID: testClientID,
 		Nonce:    "abc123",
 		HMAC:     "hmac-value",
 	}
@@ -346,7 +352,7 @@ func TestAllMessageTypes(t *testing.T) {
 
 func TestWriteReadMessageBuffered(t *testing.T) {
 	authData := &AuthMessage{
-		ClientID: "test-client",
+		ClientID: testClientID,
 		Nonce:    "abc123",
 		HMAC:     "hmac-value",
 	}
@@ -478,7 +484,7 @@ func TestMultipleMessagesBuffered(t *testing.T) {
 
 // TestNewClientHandler tests the ClientHandler constructor
 func TestNewClientHandler(t *testing.T) {
-	clientID := "test-client"
+	clientID := testClientID
 	psk := "test-psk"
 
 	handler := NewClientHandler(clientID, psk, nil)
@@ -507,9 +513,9 @@ func TestClientHandlerGetSessionID(t *testing.T) {
 	}
 
 	// Set session ID directly for testing
-	handler.sessionID = "test-session-123"
-	if sid := handler.GetSessionID(); sid != "test-session-123" {
-		t.Errorf("GetSessionID() = %v, want test-session-123", sid)
+	handler.sessionID = testSessionID
+	if sid := handler.GetSessionID(); sid != testSessionID {
+		t.Errorf("GetSessionID() = %v, want %s", sid, testSessionID)
 	}
 }
 
@@ -523,7 +529,7 @@ func TestClientHandlerIsAuthenticated(t *testing.T) {
 	}
 
 	// Set session ID to simulate authentication
-	handler.sessionID = "test-session-123"
+	handler.sessionID = testSessionID
 	if !handler.IsAuthenticated() {
 		t.Error("IsAuthenticated() = false, want true after setting sessionID")
 	}
