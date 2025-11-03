@@ -159,7 +159,9 @@ func TestReadHeaderInvalidVersion(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	WriteHeader(&buf, header)
+	if err := WriteHeader(&buf, header); err != nil {
+		t.Fatalf("Failed to write header: %v", err)
+	}
 
 	_, err := ReadHeader(&buf)
 	if err == nil {
