@@ -28,6 +28,7 @@ func WriteMessage(stream *quicgo.Stream, msg *Message) error {
 	}
 
 	// Write length prefix (4 bytes, big-endian)
+	// #nosec G115 -- len(data) validated to be <= MaxMessageSize (1MB) which fits in uint32
 	length := uint32(len(data))
 	if err := binary.Write(stream, binary.BigEndian, length); err != nil {
 		return fmt.Errorf("failed to write message length: %w", err)
@@ -91,6 +92,7 @@ func WriteMessageBuffered(writer *bufio.Writer, msg *Message) error {
 	}
 
 	// Write length prefix (4 bytes, big-endian)
+	// #nosec G115 -- len(data) validated to be <= MaxMessageSize (1MB) which fits in uint32
 	length := uint32(len(data))
 	if err := binary.Write(writer, binary.BigEndian, length); err != nil {
 		return fmt.Errorf("failed to write message length: %w", err)

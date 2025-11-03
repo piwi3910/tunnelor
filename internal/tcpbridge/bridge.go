@@ -84,7 +84,7 @@ func TCPToQUIC(tcpConn net.Conn, quicStream *quicgo.Stream) error {
 	log.Debug().
 		Str("local_addr", tcpConn.LocalAddr().String()).
 		Str("remote_addr", tcpConn.RemoteAddr().String()).
-		Uint64("stream_id", uint64((*quicStream).StreamID())).
+		Uint64("stream_id", uint64((*quicStream).StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("Bridging TCP to QUIC")
 
 	// Perform bidirectional copy
@@ -93,7 +93,7 @@ func TCPToQUIC(tcpConn net.Conn, quicStream *quicgo.Stream) error {
 	}
 
 	log.Debug().
-		Uint64("stream_id", uint64((*quicStream).StreamID())).
+		Uint64("stream_id", uint64((*quicStream).StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("TCP to QUIC bridge closed")
 
 	return nil
@@ -109,7 +109,7 @@ func QUICToTCP(quicStream *quicgo.Stream, targetAddr string) error {
 
 	log.Debug().
 		Str("target_addr", targetAddr).
-		Uint64("stream_id", uint64((*quicStream).StreamID())).
+		Uint64("stream_id", uint64((*quicStream).StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("Connecting to TCP target")
 
 	// Connect to target TCP
@@ -125,7 +125,7 @@ func QUICToTCP(quicStream *quicgo.Stream, targetAddr string) error {
 
 	log.Info().
 		Str("target_addr", targetAddr).
-		Uint64("stream_id", uint64((*quicStream).StreamID())).
+		Uint64("stream_id", uint64((*quicStream).StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("Connected to TCP target, bridging QUIC to TCP")
 
 	// Perform bidirectional copy
@@ -135,7 +135,7 @@ func QUICToTCP(quicStream *quicgo.Stream, targetAddr string) error {
 
 	log.Debug().
 		Str("target_addr", targetAddr).
-		Uint64("stream_id", uint64((*quicStream).StreamID())).
+		Uint64("stream_id", uint64((*quicStream).StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("QUIC to TCP bridge closed")
 
 	return nil

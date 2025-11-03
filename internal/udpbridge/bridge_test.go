@@ -36,7 +36,7 @@ func TestWriteReadUDPDatagram(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			datagram := &UDPDatagram{
-				Length: uint16(len(tt.data)),
+				Length: uint16(len(tt.data)), // #nosec G115 -- Test data is small, fits in uint16
 				Data:   tt.data,
 			}
 
@@ -139,7 +139,7 @@ func TestMultipleDatagrams(t *testing.T) {
 
 	for _, data := range datagrams {
 		dg := &UDPDatagram{
-			Length: uint16(len(data)),
+			Length: uint16(len(data)), // #nosec G115 -- Test data is small, fits in uint16
 			Data:   data,
 		}
 		err := WriteUDPDatagram(&buf, dg)
@@ -287,7 +287,7 @@ func TestDatagramWithVariousDataPatterns(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			datagram := &UDPDatagram{
-				Length: uint16(len(tt.data)),
+				Length: uint16(len(tt.data)), // #nosec G115 -- Test data is small, fits in uint16
 				Data:   tt.data,
 			}
 

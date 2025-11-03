@@ -67,13 +67,17 @@ func (m *Multiplexer) OpenStream(protocol ProtocolID, metadata []byte) (*Stream,
 	// Create stream header
 	header, err := NewStreamHeader(protocol, metadata)
 	if err != nil {
-		stream.Close()
+		if closeErr := stream.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close stream after header creation error")
+		}
 		return nil, fmt.Errorf("failed to create stream header: %w", err)
 	}
 
 	// Write header to stream
 	if err := WriteHeader(stream, header); err != nil {
-		stream.Close()
+		if closeErr := stream.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close stream after header write error")
+		}
 		return nil, fmt.Errorf("failed to write stream header: %w", err)
 	}
 
@@ -81,7 +85,7 @@ func (m *Multiplexer) OpenStream(protocol ProtocolID, metadata []byte) (*Stream,
 	muxStream := &Stream{
 		Stream:   stream,
 		Header:   header,
-		StreamID: uint64(stream.StreamID()),
+		StreamID: uint64(stream.StreamID()), // #nosec G115 -- QUIC stream IDs are always non-negative
 	}
 
 	// Register stream
@@ -108,7 +112,9 @@ func (m *Multiplexer) AcceptStream() (*Stream, error) {
 	// Read stream header
 	header, err := ReadHeader(stream)
 	if err != nil {
-		stream.Close()
+		if closeErr := stream.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close stream after header read error")
+		}
 		return nil, fmt.Errorf("failed to read stream header: %w", err)
 	}
 
@@ -116,7 +122,7 @@ func (m *Multiplexer) AcceptStream() (*Stream, error) {
 	muxStream := &Stream{
 		Stream:   stream,
 		Header:   header,
-		StreamID: uint64(stream.StreamID()),
+		StreamID: uint64(stream.StreamID()), // #nosec G115 -- QUIC stream IDs are always non-negative
 	}
 
 	// Register stream
@@ -234,7 +240,9 @@ func (m *Multiplexer) Close() error {
 
 	// Close all streams
 	for streamID, muxStream := range m.streams {
-		muxStream.Stream.Close()
+		if err := muxStream.Stream.Close(); err != nil {
+			log.Warn().Err(err).Uint64("stream_id", streamID).Msg("Failed to close stream during multiplexer shutdown")
+		}
 		delete(m.streams, streamID)
 	}
 

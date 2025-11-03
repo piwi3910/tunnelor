@@ -75,7 +75,7 @@ func UDPToQUIC(ctx context.Context, udpConn *net.UDPConn, quicStream *quicgo.Str
 
 	log.Debug().
 		Str("local_addr", udpConn.LocalAddr().String()).
-		Uint64("stream_id", uint64((*quicStream).StreamID())).
+		Uint64("stream_id", uint64((*quicStream).StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("Bridging UDP to QUIC")
 
 	buffer := make([]byte, 65535) // Max UDP datagram size
@@ -108,7 +108,7 @@ func UDPToQUIC(ctx context.Context, udpConn *net.UDPConn, quicStream *quicgo.Str
 		}
 
 		log.Debug().
-			Uint64("stream_id", uint64((*quicStream).StreamID())).
+			Uint64("stream_id", uint64((*quicStream).StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 			Int("size", n).
 			Msg("Sent UDP datagram over QUIC")
 	}
@@ -124,7 +124,7 @@ func QUICToUDP(ctx context.Context, quicStream *quicgo.Stream, targetAddr string
 
 	log.Debug().
 		Str("target_addr", targetAddr).
-		Uint64("stream_id", uint64((*quicStream).StreamID())).
+		Uint64("stream_id", uint64((*quicStream).StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("Connecting to UDP target")
 
 	// Resolve target address
@@ -146,7 +146,7 @@ func QUICToUDP(ctx context.Context, quicStream *quicgo.Stream, targetAddr string
 
 	log.Info().
 		Str("target_addr", targetAddr).
-		Uint64("stream_id", uint64((*quicStream).StreamID())).
+		Uint64("stream_id", uint64((*quicStream).StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("Connected to UDP target, bridging QUIC to UDP")
 
 	// Read datagrams from QUIC stream and forward to UDP
@@ -174,7 +174,7 @@ func QUICToUDP(ctx context.Context, quicStream *quicgo.Stream, targetAddr string
 
 		log.Debug().
 			Str("target_addr", targetAddr).
-			Uint64("stream_id", uint64((*quicStream).StreamID())).
+			Uint64("stream_id", uint64((*quicStream).StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 			Int("size", len(datagram.Data)).
 			Msg("Forwarded datagram to UDP target")
 	}

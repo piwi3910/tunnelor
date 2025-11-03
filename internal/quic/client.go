@@ -131,7 +131,9 @@ func (c *Client) Reconnect() error {
 
 	// Close existing connection if any
 	if c.connection != nil {
-		c.connection.Close()
+		if err := c.connection.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close existing connection during reconnect")
+		}
 		c.connection = nil
 	}
 

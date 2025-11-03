@@ -130,7 +130,7 @@ func acceptAndHandleStreams(serverConn *quic.Connection, serverMux *mux.Multiple
 			}
 
 			muxStream := &mux.Stream{
-				StreamID: uint64(stream.StreamID()),
+				StreamID: uint64(stream.StreamID()), // #nosec G115 -- QUIC stream IDs are always non-negative
 				Stream:   stream,
 				Header:   header,
 			}
@@ -524,7 +524,7 @@ func TestStreamMultiplexing(t *testing.T) {
 			}
 
 			muxStream := &mux.Stream{
-				StreamID: uint64(stream.StreamID()),
+				StreamID: uint64(stream.StreamID()), // #nosec G115 -- QUIC stream IDs are always non-negative
 				Stream:   stream,
 				Header:   header,
 			}

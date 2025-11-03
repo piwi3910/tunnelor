@@ -30,11 +30,12 @@ func (c *Connection) OpenStream() (*quic.Stream, error) {
 	// Register stream
 	streamID := stream.StreamID()
 	c.streamsMutex.Lock()
+	// #nosec G115 -- QUIC stream IDs are always non-negative, safe to convert to uint64
 	c.streams[uint64(streamID)] = stream
 	c.streamsMutex.Unlock()
 
 	log.Debug().
-		Uint64("stream_id", uint64(streamID)).
+		Uint64("stream_id", uint64(streamID)). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Str("remote_addr", c.remoteAddr).
 		Msg("Opened new stream")
 
@@ -51,11 +52,12 @@ func (c *Connection) AcceptStream() (*quic.Stream, error) {
 	// Register stream
 	streamID := stream.StreamID()
 	c.streamsMutex.Lock()
+	// #nosec G115 -- QUIC stream IDs are always non-negative, safe to convert to uint64
 	c.streams[uint64(streamID)] = stream
 	c.streamsMutex.Unlock()
 
 	log.Debug().
-		Uint64("stream_id", uint64(streamID)).
+		Uint64("stream_id", uint64(streamID)). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Str("remote_addr", c.remoteAddr).
 		Msg("Accepted new stream")
 
@@ -139,7 +141,9 @@ func (c *Connection) Close() error {
 	// Close all streams
 	c.streamsMutex.Lock()
 	for streamID, stream := range c.streams {
-		stream.Close()
+		if err := stream.Close(); err != nil {
+			log.Warn().Err(err).Uint64("stream_id", streamID).Msg("Failed to close stream during connection shutdown")
+		}
 		delete(c.streams, streamID)
 	}
 	c.streamsMutex.Unlock()

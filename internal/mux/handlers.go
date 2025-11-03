@@ -18,7 +18,7 @@ import (
 // DefaultControlHandler is a default handler for control streams
 func DefaultControlHandler(_ context.Context, stream *quicgo.Stream, _ *StreamHeader) error {
 	log.Debug().
-		Uint64("stream_id", uint64(stream.StreamID())).
+		Uint64("stream_id", uint64(stream.StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("Control stream handler called")
 
 	// Control streams are typically handled by the control package
@@ -29,7 +29,7 @@ func DefaultControlHandler(_ context.Context, stream *quicgo.Stream, _ *StreamHe
 // DefaultTCPHandler is a default handler for TCP streams
 func DefaultTCPHandler(_ context.Context, stream *quicgo.Stream, header *StreamHeader) error {
 	log.Debug().
-		Uint64("stream_id", uint64(stream.StreamID())).
+		Uint64("stream_id", uint64(stream.StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("TCP stream handler called")
 
 	// Parse TCP metadata
@@ -45,7 +45,7 @@ func DefaultTCPHandler(_ context.Context, stream *quicgo.Stream, header *StreamH
 	log.Info().
 		Str("source", meta.SourceAddr).
 		Str("target", meta.TargetAddr).
-		Uint64("stream_id", uint64(stream.StreamID())).
+		Uint64("stream_id", uint64(stream.StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("TCP stream opened, forwarding to target")
 
 	// Forward QUIC stream to TCP target
@@ -58,7 +58,7 @@ func DefaultTCPHandler(_ context.Context, stream *quicgo.Stream, header *StreamH
 // DefaultUDPHandler is a default handler for UDP streams
 func DefaultUDPHandler(ctx context.Context, stream *quicgo.Stream, header *StreamHeader) error {
 	log.Debug().
-		Uint64("stream_id", uint64(stream.StreamID())).
+		Uint64("stream_id", uint64(stream.StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("UDP stream handler called")
 
 	// Parse UDP metadata
@@ -74,7 +74,7 @@ func DefaultUDPHandler(ctx context.Context, stream *quicgo.Stream, header *Strea
 	log.Info().
 		Str("source", meta.SourceAddr).
 		Str("target", meta.TargetAddr).
-		Uint64("stream_id", uint64(stream.StreamID())).
+		Uint64("stream_id", uint64(stream.StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("UDP stream opened, forwarding to target")
 
 	// Forward QUIC stream to UDP target
@@ -87,7 +87,7 @@ func DefaultUDPHandler(ctx context.Context, stream *quicgo.Stream, header *Strea
 // DefaultRawHandler is a default handler for raw streams
 func DefaultRawHandler(ctx context.Context, stream *quicgo.Stream, _ *StreamHeader) error {
 	log.Debug().
-		Uint64("stream_id", uint64(stream.StreamID())).
+		Uint64("stream_id", uint64(stream.StreamID())). // #nosec G115 -- QUIC stream IDs are always non-negative
 		Msg("Raw stream handler called")
 
 	// TODO: Implement raw stream handling
