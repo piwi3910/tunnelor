@@ -79,7 +79,9 @@ func (s *Server) Start(listenAddr string) error {
 	// Create QUIC listener
 	listener, err := quic.Listen(conn, s.tlsConfig, s.quicConfig)
 	if err != nil {
-		conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close UDP connection after listener creation error")
+		}
 		return fmt.Errorf("failed to create QUIC listener: %w", err)
 	}
 
@@ -145,8 +147,10 @@ func (s *Server) Close() error {
 
 	// Close all connections
 	s.connMutex.Lock()
-	for _, conn := range s.connections {
-		conn.Close()
+	for remoteAddr, conn := range s.connections {
+		if err := conn.Close(); err != nil {
+			log.Warn().Err(err).Str("remote_addr", remoteAddr).Msg("Failed to close connection during server shutdown")
+		}
 	}
 	s.connMutex.Unlock()
 
