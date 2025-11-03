@@ -7,6 +7,19 @@ import (
 )
 
 func TestValidateServerConfig(t *testing.T) {
+	// Create temporary test files for TLS cert/key
+	tmpDir := t.TempDir()
+	testCert := filepath.Join(tmpDir, "test.crt")
+	testKey := filepath.Join(tmpDir, "test.key")
+
+	// Create dummy cert/key files
+	if err := os.WriteFile(testCert, []byte("test cert"), 0600); err != nil {
+		t.Fatalf("Failed to create test cert: %v", err)
+	}
+	if err := os.WriteFile(testKey, []byte("test key"), 0600); err != nil {
+		t.Fatalf("Failed to create test key: %v", err)
+	}
+
 	tests := []struct {
 		name    string
 		errMsg  string
@@ -17,8 +30,8 @@ func TestValidateServerConfig(t *testing.T) {
 			name: "valid config",
 			config: ServerConfig{
 				Listen:      "0.0.0.0:4433",
-				TLSCert:     "/etc/tunnelor/server.crt",
-				TLSKey:      "/etc/tunnelor/server.key",
+				TLSCert:     testCert,
+				TLSKey:      testKey,
 				MetricsPort: 9090,
 				Auth: ServerAuthConfig{
 					PSKMap: map[string]string{
@@ -32,8 +45,8 @@ func TestValidateServerConfig(t *testing.T) {
 			name: "missing listen",
 			config: ServerConfig{
 				Listen:  "",
-				TLSCert: "/etc/tunnelor/server.crt",
-				TLSKey:  "/etc/tunnelor/server.key",
+				TLSCert: testCert,
+				TLSKey:  testKey,
 				Auth: ServerAuthConfig{
 					PSKMap: map[string]string{"client1": "secret1"},
 				},
@@ -46,7 +59,7 @@ func TestValidateServerConfig(t *testing.T) {
 			config: ServerConfig{
 				Listen:  "0.0.0.0:4433",
 				TLSCert: "",
-				TLSKey:  "/etc/tunnelor/server.key",
+				TLSKey:  testKey,
 				Auth: ServerAuthConfig{
 					PSKMap: map[string]string{"client1": "secret1"},
 				},
@@ -58,7 +71,7 @@ func TestValidateServerConfig(t *testing.T) {
 			name: "missing tls_key",
 			config: ServerConfig{
 				Listen:  "0.0.0.0:4433",
-				TLSCert: "/etc/tunnelor/server.crt",
+				TLSCert: testCert,
 				TLSKey:  "",
 				Auth: ServerAuthConfig{
 					PSKMap: map[string]string{"client1": "secret1"},
@@ -71,8 +84,8 @@ func TestValidateServerConfig(t *testing.T) {
 			name: "empty psk_map",
 			config: ServerConfig{
 				Listen:  "0.0.0.0:4433",
-				TLSCert: "/etc/tunnelor/server.crt",
-				TLSKey:  "/etc/tunnelor/server.key",
+				TLSCert: testCert,
+				TLSKey:  testKey,
 				Auth: ServerAuthConfig{
 					PSKMap: map[string]string{},
 				},
@@ -249,6 +262,18 @@ func TestLoadServerConfig(t *testing.T) {
 	// Create temporary directory for test configs
 	tmpDir := t.TempDir()
 
+	// Create temporary test files for TLS cert/key
+	testCert := filepath.Join(tmpDir, "test.crt")
+	testKey := filepath.Join(tmpDir, "test.key")
+
+	// Create dummy cert/key files
+	if err := os.WriteFile(testCert, []byte("test cert"), 0600); err != nil {
+		t.Fatalf("Failed to create test cert: %v", err)
+	}
+	if err := os.WriteFile(testKey, []byte("test key"), 0600); err != nil {
+		t.Fatalf("Failed to create test key: %v", err)
+	}
+
 	tests := []struct {
 		name       string
 		configYAML string
@@ -258,8 +283,8 @@ func TestLoadServerConfig(t *testing.T) {
 			name: "valid server config",
 			configYAML: `server:
   listen: 0.0.0.0:4433
-  tls_cert: /etc/tunnelor/server.crt
-  tls_key: /etc/tunnelor/server.key
+  tls_cert: ` + testCert + `
+  tls_key: ` + testKey + `
   metrics_port: 9090
 
 auth:
