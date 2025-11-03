@@ -1,3 +1,5 @@
+// Package logger provides structured logging capabilities using zerolog.
+// It supports configurable log levels, pretty printing, and custom time formatting.
 package logger
 
 import (
@@ -12,11 +14,12 @@ import (
 // Level represents the log level
 type Level string
 
+// Log level constants define the available logging levels
 const (
-	DebugLevel Level = "debug"
-	InfoLevel  Level = "info"
-	WarnLevel  Level = "warn"
-	ErrorLevel Level = "error"
+	DebugLevel Level = "debug" // DebugLevel enables debug-level logging
+	InfoLevel  Level = "info"  // InfoLevel enables info-level logging
+	WarnLevel  Level = "warn"  // WarnLevel enables warning-level logging
+	ErrorLevel Level = "error" // ErrorLevel enables error-level logging
 )
 
 // Config holds logger configuration

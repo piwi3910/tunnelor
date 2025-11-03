@@ -1,3 +1,5 @@
+// Package udpbridge provides UDP-to-QUIC bridging functionality.
+// It handles UDP datagram encapsulation and forwarding through QUIC streams with session management.
 package udpbridge
 
 import (

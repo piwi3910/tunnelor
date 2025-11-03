@@ -1,3 +1,5 @@
+// Package tcpbridge provides TCP-to-QUIC bridging functionality.
+// It handles bidirectional TCP connections and forwards them through QUIC streams.
 package tcpbridge
 
 import (

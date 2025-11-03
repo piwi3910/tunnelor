@@ -1,3 +1,5 @@
+// Package control implements the control plane for Tunnelor connections.
+// It handles PSK-based authentication, session management, and control message framing.
 package control
 
 import (

@@ -1,3 +1,5 @@
+// Package config provides configuration loading and parsing for Tunnelor server and client.
+// It uses Viper for YAML-based configuration management with validation.
 package config
 
 import (

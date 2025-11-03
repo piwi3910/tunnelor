@@ -1,3 +1,5 @@
+// Package mux provides stream multiplexing and protocol handling for QUIC connections.
+// It manages stream headers, protocol routing, and default handlers for TCP/UDP/control protocols.
 package mux
 
 import (

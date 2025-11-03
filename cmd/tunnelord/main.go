@@ -1,3 +1,5 @@
+// Package main provides the Tunnelord server binary for accepting QUIC-based tunnel connections.
+// It listens for incoming QUIC connections, authenticates clients using PSK, and handles port forwarding.
 package main
 
 import (

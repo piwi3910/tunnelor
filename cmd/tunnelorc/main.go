@@ -1,3 +1,5 @@
+// Package main provides the Tunnelorc client binary for establishing QUIC-based tunnels.
+// It connects to a Tunnelor server, authenticates using PSK, and creates local/remote port forwards.
 package main
 
 import (
@@ -196,7 +198,7 @@ func runConnect(_ *cobra.Command, _ []string) error {
 	cfg, err := config.LoadClientConfig(cfgFile)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to load client configuration")
-		return fmt.Errorf("Failed to load client configuration: %w", err)
+		return fmt.Errorf("failed to load client configuration: %w", err)
 	}
 
 	log.Info().
@@ -212,14 +214,14 @@ func runConnect(_ *cobra.Command, _ []string) error {
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create QUIC client")
-		return fmt.Errorf("Failed to create QUIC client: %w", err)
+		return fmt.Errorf("failed to create QUIC client: %w", err)
 	}
 
 	// Connect to QUIC server
 	if err := quicClient.Connect(); err != nil {
 		quicClient.Close()
 		log.Error().Err(err).Msg("Failed to connect to QUIC server")
-		return fmt.Errorf("Failed to connect to QUIC server: %w", err)
+		return fmt.Errorf("failed to connect to QUIC server: %w", err)
 	}
 
 	log.Info().
@@ -234,7 +236,7 @@ func runConnect(_ *cobra.Command, _ []string) error {
 	if err := controlHandler.Authenticate(); err != nil {
 		quicClient.Close()
 		log.Error().Err(err).Msg("Failed to authenticate with server")
-		return fmt.Errorf("Failed to authenticate with server: %w", err)
+		return fmt.Errorf("failed to authenticate with server: %w", err)
 	}
 	defer quicClient.Close()
 

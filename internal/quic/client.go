@@ -1,3 +1,5 @@
+// Package quic provides QUIC connection management for Tunnelor.
+// It handles QUIC client/server connections, TLS configuration, and connection lifecycle.
 package quic
 
 import (
