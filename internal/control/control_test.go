@@ -417,9 +417,10 @@ func TestMultipleMessagesBuffered(t *testing.T) {
 // TestNewClientHandler tests the ClientHandler constructor
 func TestNewClientHandler(t *testing.T) {
 	clientID := testClientID
-	psk := "test-psk"
+	psk := base64.StdEncoding.EncodeToString([]byte("test-psk"))
 
-	handler := NewClientHandler(clientID, psk, nil)
+	handler, err := NewClientHandler(clientID, psk, nil)
+	require.NoError(t, err, "NewClientHandler() should not return error")
 
 	if handler == nil {
 		require.Fail(t, "NewClientHandler() returned nil")
@@ -427,8 +428,8 @@ func TestNewClientHandler(t *testing.T) {
 	if handler.clientID != clientID {
 		assert.Equal(t, clientID, handler.clientID, "clientID should match expected value")
 	}
-	if handler.psk != psk {
-		assert.Equal(t, psk, handler.psk, "psk should match expected value")
+	if handler.pskCache == nil {
+		assert.Fail(t, "pskCache should be initialized")
 	}
 	if handler.sessionID != "" {
 		t.Errorf("sessionID should be empty, got %v", handler.sessionID)
@@ -437,7 +438,9 @@ func TestNewClientHandler(t *testing.T) {
 
 // TestClientHandlerGetSessionID tests GetSessionID method
 func TestClientHandlerGetSessionID(t *testing.T) {
-	handler := NewClientHandler("test", "psk", nil)
+	psk := base64.StdEncoding.EncodeToString([]byte("test-psk"))
+	handler, err := NewClientHandler("test", psk, nil)
+	require.NoError(t, err, "NewClientHandler() should not return error")
 
 	// Initially should be empty
 	if sid := handler.GetSessionID(); sid != "" {
@@ -453,7 +456,9 @@ func TestClientHandlerGetSessionID(t *testing.T) {
 
 // TestClientHandlerIsAuthenticated tests IsAuthenticated method
 func TestClientHandlerIsAuthenticated(t *testing.T) {
-	handler := NewClientHandler("test", "psk", nil)
+	psk := base64.StdEncoding.EncodeToString([]byte("test-psk"))
+	handler, err := NewClientHandler("test", psk, nil)
+	require.NoError(t, err, "NewClientHandler() should not return error")
 
 	// Initially should be false
 	assert.False(t, handler.IsAuthenticated(), "IsAuthenticated() should be false initially")
@@ -466,17 +471,18 @@ func TestClientHandlerIsAuthenticated(t *testing.T) {
 // TestNewServerHandler tests the ServerHandler constructor
 func TestNewServerHandler(t *testing.T) {
 	pskMap := map[string]string{
-		"client1": "psk1",
-		"client2": "psk2",
+		"client1": base64.StdEncoding.EncodeToString([]byte("psk1")),
+		"client2": base64.StdEncoding.EncodeToString([]byte("psk2")),
 	}
 
-	handler := NewServerHandler(pskMap, nil)
+	handler, err := NewServerHandler(pskMap, nil)
+	require.NoError(t, err, "NewServerHandler() should not return error")
 
 	if handler == nil {
 		require.Fail(t, "NewServerHandler() returned nil")
 	}
-	if len(handler.pskMap) != 2 {
-		t.Errorf("pskMap length = %v, want 2", len(handler.pskMap))
+	if len(handler.pskCacheMap) != 2 {
+		t.Errorf("pskCacheMap length = %v, want 2", len(handler.pskCacheMap))
 	}
 	if handler.sessions == nil {
 		assert.Fail(t, "sessions map should be initialized")
@@ -488,7 +494,11 @@ func TestNewServerHandler(t *testing.T) {
 
 // TestServerHandlerSessionManagement tests session management methods
 func TestServerHandlerSessionManagement(t *testing.T) {
-	handler := NewServerHandler(map[string]string{"client1": "psk1"}, nil)
+	pskMap := map[string]string{
+		"client1": base64.StdEncoding.EncodeToString([]byte("psk1")),
+	}
+	handler, err := NewServerHandler(pskMap, nil)
+	require.NoError(t, err, "NewServerHandler() should not return error")
 
 	// Initially should have no sessions
 	if count := handler.SessionCount(); count != 0 {
@@ -538,10 +548,12 @@ func TestServerHandlerSessionManagement(t *testing.T) {
 
 // TestServerHandlerMultipleSessions tests managing multiple sessions
 func TestServerHandlerMultipleSessions(t *testing.T) {
-	handler := NewServerHandler(map[string]string{
-		"client1": "psk1",
-		"client2": "psk2",
-	}, nil)
+	pskMap := map[string]string{
+		"client1": base64.StdEncoding.EncodeToString([]byte("psk1")),
+		"client2": base64.StdEncoding.EncodeToString([]byte("psk2")),
+	}
+	handler, err := NewServerHandler(pskMap, nil)
+	require.NoError(t, err, "NewServerHandler() should not return error")
 
 	// Add multiple sessions
 	sessions := []*Session{

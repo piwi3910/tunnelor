@@ -15,17 +15,23 @@ type ClientHandler struct {
 	lastPing   time.Time
 	connection *quic.Connection
 	clientID   string
-	psk        string
+	pskCache   *PSKCache
 	sessionID  string
 }
 
 // NewClientHandler creates a new client control handler
-func NewClientHandler(clientID, psk string, conn *quic.Connection) *ClientHandler {
+func NewClientHandler(clientID, psk string, conn *quic.Connection) (*ClientHandler, error) {
+	// Cache the decoded PSK to avoid repeated base64 decoding
+	pskCache, err := NewPSKCache(psk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PSK cache: %w", err)
+	}
+
 	return &ClientHandler{
 		clientID:   clientID,
-		psk:        psk,
+		pskCache:   pskCache,
 		connection: conn,
-	}
+	}, nil
 }
 
 // Authenticate performs PSK authentication with the server
@@ -46,11 +52,8 @@ func (h *ClientHandler) Authenticate() error {
 		return fmt.Errorf("failed to generate nonce: %w", err)
 	}
 
-	// Compute HMAC
-	hmacValue, err := ComputeAuthHMAC(h.psk, h.clientID, nonce)
-	if err != nil {
-		return fmt.Errorf("failed to compute HMAC: %w", err)
-	}
+	// Compute HMAC using cached PSK (avoids repeated base64 decoding)
+	hmacValue := h.pskCache.ComputeAuthHMAC(h.clientID, nonce)
 
 	// Create AUTH message
 	authMsg := AuthMessage{

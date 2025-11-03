@@ -12,10 +12,10 @@ import (
 
 // ServerHandler handles control plane operations on the server side
 type ServerHandler struct {
-	pskMap     map[string]string
-	sessions   map[string]*Session
-	connection *quic.Connection
-	clientID   string // Authenticated client ID
+	pskCacheMap map[string]*PSKCache
+	sessions    map[string]*Session
+	connection  *quic.Connection
+	clientID    string // Authenticated client ID
 }
 
 // Session represents an authenticated client session
@@ -28,12 +28,22 @@ type Session struct {
 }
 
 // NewServerHandler creates a new server control handler
-func NewServerHandler(pskMap map[string]string, conn *quic.Connection) *ServerHandler {
-	return &ServerHandler{
-		pskMap:     pskMap,
-		sessions:   make(map[string]*Session),
-		connection: conn,
+func NewServerHandler(pskMap map[string]string, conn *quic.Connection) (*ServerHandler, error) {
+	// Pre-decode all PSKs into caches to avoid repeated base64 decoding
+	pskCacheMap := make(map[string]*PSKCache, len(pskMap))
+	for clientID, psk := range pskMap {
+		cache, err := NewPSKCache(psk)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create PSK cache for client %s: %w", clientID, err)
+		}
+		pskCacheMap[clientID] = cache
 	}
+
+	return &ServerHandler{
+		pskCacheMap: pskCacheMap,
+		sessions:    make(map[string]*Session),
+		connection:  conn,
+	}, nil
 }
 
 // HandleControlStream handles the control stream for authentication and session management
@@ -64,8 +74,8 @@ func (h *ServerHandler) HandleControlStream(stream *quicgo.Stream) error {
 		return h.sendAuthFail(stream, "Invalid authentication data")
 	}
 
-	// Verify client has PSK
-	psk, ok := h.pskMap[authMsg.ClientID]
+	// Verify client has PSK cache
+	pskCache, ok := h.pskCacheMap[authMsg.ClientID]
 	if !ok {
 		log.Warn().
 			Str("client_id", authMsg.ClientID).
@@ -73,17 +83,12 @@ func (h *ServerHandler) HandleControlStream(stream *quicgo.Stream) error {
 		return h.sendAuthFail(stream, "Authentication failed")
 	}
 
-	// Verify HMAC
-	valid, err := VerifyAuthHMAC(psk, authMsg.ClientID, authMsg.Nonce, authMsg.HMAC)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to verify HMAC")
-		return h.sendAuthFail(stream, "Authentication failed")
-	}
-
+	// Verify HMAC using cached PSK (avoids repeated base64 decoding)
+	valid := pskCache.VerifyAuthHMAC(authMsg.ClientID, authMsg.Nonce, authMsg.HMAC)
 	if !valid {
 		log.Warn().
 			Str("client_id", authMsg.ClientID).
-			Msg("Invalid HMAC")
+			Msg("HMAC verification failed")
 		return h.sendAuthFail(stream, "Authentication failed")
 	}
 

@@ -240,8 +240,12 @@ func (suite *TunnelorIntegrationSuite) acceptServerConnection() {
 
 func (suite *TunnelorIntegrationSuite) authenticateClient() {
 	// Setup control handlers
-	suite.clientHandler = control.NewClientHandler(suite.clientID, suite.pskEncoded, suite.client.Connection())
-	suite.serverHandler = control.NewServerHandler(suite.pskMap, suite.serverConn)
+	var err error
+	suite.clientHandler, err = control.NewClientHandler(suite.clientID, suite.pskEncoded, suite.client.Connection())
+	suite.Require().NoError(err, "Failed to create client handler")
+
+	suite.serverHandler, err = control.NewServerHandler(suite.pskMap, suite.serverConn)
+	suite.Require().NoError(err, "Failed to create server handler")
 
 	// Server accepts control stream
 	authResult := make(chan error, 1)
@@ -255,7 +259,7 @@ func (suite *TunnelorIntegrationSuite) authenticateClient() {
 	}()
 
 	// Client authenticates
-	err := suite.clientHandler.Authenticate()
+	err = suite.clientHandler.Authenticate()
 	suite.Require().NoError(err, "Client authentication should succeed")
 
 	// Wait for server authentication result

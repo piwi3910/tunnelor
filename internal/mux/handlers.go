@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	quicgo "github.com/quic-go/quic-go"
 	"github.com/rs/zerolog/log"
@@ -15,6 +16,17 @@ import (
 	"github.com/piwi3910/tunnelor/internal/tcpbridge"
 	"github.com/piwi3910/tunnelor/internal/udpbridge"
 )
+
+// CopyBuffer is the size of the buffer used for raw stream copying
+const CopyBuffer = 32 * 1024 // 32KB
+
+// rawBufferPool is a sync.Pool for raw stream copy buffers to reduce GC pressure
+var rawBufferPool = sync.Pool{
+	New: func() interface{} {
+		buf := make([]byte, CopyBuffer)
+		return &buf
+	},
+}
 
 // DefaultControlHandler is a default handler for control streams
 func DefaultControlHandler(_ context.Context, stream *quicgo.Stream, _ *StreamHeader) error {
@@ -130,12 +142,15 @@ func forwardRawStream(ctx context.Context, stream *quicgo.Stream, targetAddr str
 		Str("target", targetAddr).
 		Msg("Connected to raw stream target")
 
-	// Bidirectional copy with context
+	// Bidirectional copy with context using pooled buffers
 	errChan := make(chan error, 2)
 
 	// Stream -> Target
 	go func() {
-		_, err := io.Copy(conn, stream)
+		bufPtr := rawBufferPool.Get().(*[]byte)
+		defer rawBufferPool.Put(bufPtr)
+
+		_, err := io.CopyBuffer(conn, stream, *bufPtr)
 		if err != nil && !errors.Is(err, io.EOF) {
 			errChan <- fmt.Errorf("stream->target copy failed: %w", err)
 		} else {
@@ -145,7 +160,10 @@ func forwardRawStream(ctx context.Context, stream *quicgo.Stream, targetAddr str
 
 	// Target -> Stream
 	go func() {
-		_, err := io.Copy(stream, conn)
+		bufPtr := rawBufferPool.Get().(*[]byte)
+		defer rawBufferPool.Put(bufPtr)
+
+		_, err := io.CopyBuffer(stream, conn, *bufPtr)
 		if err != nil && !errors.Is(err, io.EOF) {
 			errChan <- fmt.Errorf("target->stream copy failed: %w", err)
 		} else {

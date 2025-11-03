@@ -350,8 +350,15 @@ func TestAuthentication(t *testing.T) {
 	}
 
 	// Setup control handlers
-	clientHandler := control.NewClientHandler(testClientID, pskEncoded, client.Connection())
-	serverHandler := control.NewServerHandler(pskMap, serverConn)
+	clientHandler, err := control.NewClientHandler(testClientID, pskEncoded, client.Connection())
+	if err != nil {
+		require.NoError(t, err, "Failed to create client handler")
+	}
+
+	serverHandler, err := control.NewServerHandler(pskMap, serverConn)
+	if err != nil {
+		require.NoError(t, err, "Failed to create server handler")
+	}
 
 	// Server accepts control stream
 	authResult := make(chan error, 1)
@@ -468,8 +475,15 @@ func TestStreamMultiplexing(t *testing.T) {
 	}
 
 	// Authenticate first
-	clientHandler := control.NewClientHandler(testClientID, pskEncoded, client.Connection())
-	serverHandler := control.NewServerHandler(pskMap, serverConn)
+	clientHandler, err := control.NewClientHandler(testClientID, pskEncoded, client.Connection())
+	if err != nil {
+		require.NoError(t, err, "Failed to create client handler")
+	}
+
+	serverHandler, err := control.NewServerHandler(pskMap, serverConn)
+	if err != nil {
+		require.NoError(t, err, "Failed to create server handler")
+	}
 
 	go func() {
 		stream, _ := serverConn.AcceptStream()
@@ -677,8 +691,15 @@ func TestTCPForwarding(t *testing.T) {
 	}
 
 	// Authenticate
-	clientHandler := control.NewClientHandler(testClientID, pskEncoded, client.Connection())
-	serverHandler := control.NewServerHandler(pskMap, serverConn)
+	clientHandler, err := control.NewClientHandler(testClientID, pskEncoded, client.Connection())
+	if err != nil {
+		require.NoError(t, err, "Failed to create client handler")
+	}
+
+	serverHandler, err := control.NewServerHandler(pskMap, serverConn)
+	if err != nil {
+		require.NoError(t, err, "Failed to create server handler")
+	}
 
 	go func() {
 		stream, _ := serverConn.AcceptStream()
@@ -843,8 +864,15 @@ func TestUDPForwarding(t *testing.T) {
 	}
 
 	// Authenticate
-	clientHandler := control.NewClientHandler(testClientID, pskEncoded, client.Connection())
-	serverHandler := control.NewServerHandler(pskMap, serverConn)
+	clientHandler, err := control.NewClientHandler(testClientID, pskEncoded, client.Connection())
+	if err != nil {
+		require.NoError(t, err, "Failed to create client handler")
+	}
+
+	serverHandler, err := control.NewServerHandler(pskMap, serverConn)
+	if err != nil {
+		require.NoError(t, err, "Failed to create server handler")
+	}
 
 	go func() {
 		stream, _ := serverConn.AcceptStream()

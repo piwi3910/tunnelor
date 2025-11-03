@@ -11,6 +11,49 @@ import (
 	"fmt"
 )
 
+// PSKCache holds a decoded PSK to avoid repeated base64 decoding
+// This optimization is particularly important for high-throughput scenarios
+// where HMAC computation happens frequently
+type PSKCache struct {
+	keyBytes []byte
+}
+
+// NewPSKCache creates a new PSK cache from a base64-encoded PSK
+func NewPSKCache(pskBase64 string) (*PSKCache, error) {
+	keyBytes, err := base64.StdEncoding.DecodeString(pskBase64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode PSK: %w", err)
+	}
+	return &PSKCache{keyBytes: keyBytes}, nil
+}
+
+// ComputeHMAC computes HMAC-SHA256 using the cached key bytes
+func (c *PSKCache) ComputeHMAC(message string) string {
+	h := hmac.New(sha256.New, c.keyBytes)
+	h.Write([]byte(message))
+	mac := h.Sum(nil)
+	return hex.EncodeToString(mac)
+}
+
+// VerifyHMAC verifies that the HMAC matches the expected value using the cached key
+func (c *PSKCache) VerifyHMAC(message, expectedHMAC string) bool {
+	computedHMAC := c.ComputeHMAC(message)
+	// Use constant-time comparison to prevent timing attacks
+	return hmac.Equal([]byte(computedHMAC), []byte(expectedHMAC))
+}
+
+// ComputeAuthHMAC computes the HMAC for authentication using the cached key
+func (c *PSKCache) ComputeAuthHMAC(clientID, nonce string) string {
+	payload := CreateAuthPayload(clientID, nonce)
+	return c.ComputeHMAC(payload)
+}
+
+// VerifyAuthHMAC verifies the authentication HMAC using the cached key
+func (c *PSKCache) VerifyAuthHMAC(clientID, nonce, hmacValue string) bool {
+	payload := CreateAuthPayload(clientID, nonce)
+	return c.VerifyHMAC(payload, hmacValue)
+}
+
 // GenerateNonce generates a random nonce for authentication
 func GenerateNonce() (string, error) {
 	nonce := make([]byte, 16)

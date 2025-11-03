@@ -153,7 +153,14 @@ func handleConnection(conn *quic.Connection, pskMap map[string]string, connMgr *
 		Msg("New connection established")
 
 	// Create control handler
-	controlHandler := control.NewServerHandler(pskMap, conn)
+	controlHandler, err := control.NewServerHandler(pskMap, conn)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("remote_addr", conn.RemoteAddr()).
+			Msg("Failed to create control handler")
+		return
+	}
 
 	// Accept first stream (should be control stream)
 	controlStream, err := conn.AcceptStream()

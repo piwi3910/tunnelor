@@ -304,7 +304,14 @@ func runConnect(_ *cobra.Command, _ []string) error {
 		Msg("Connected to server")
 
 	// Create control handler
-	controlHandler := control.NewClientHandler(cfg.ClientID, cfg.PSK, quicClient.Connection())
+	controlHandler, err := control.NewClientHandler(cfg.ClientID, cfg.PSK, quicClient.Connection())
+	if err != nil {
+		if closeErr := quicClient.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close QUIC client after handler creation error")
+		}
+		log.Error().Err(err).Msg("Failed to create control handler")
+		return fmt.Errorf("failed to create control handler: %w", err)
+	}
 
 	// Authenticate with server
 	if err := controlHandler.Authenticate(); err != nil {
