@@ -7,10 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/piwi3910/tunnelor/internal/config"
 	"github.com/piwi3910/tunnelor/internal/control"
 	"github.com/piwi3910/tunnelor/internal/logger"
+	"github.com/piwi3910/tunnelor/internal/metrics"
 	"github.com/piwi3910/tunnelor/internal/mux"
 	"github.com/piwi3910/tunnelor/internal/quic"
 	"github.com/piwi3910/tunnelor/internal/server"
@@ -87,7 +89,24 @@ func runServer(_ *cobra.Command, _ []string) {
 		}
 	}()
 
-	// TODO: Start metrics server
+	// Start metrics server
+	var metricsServer *metrics.Server
+	if cfg.MetricsPort > 0 {
+		var err error
+		metricsServer, err = metrics.Start(cfg.MetricsPort)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to start metrics server")
+		} else {
+			defer func() {
+				if err := metricsServer.Stop(); err != nil {
+					log.Warn().Err(err).Msg("Failed to stop metrics server")
+				}
+			}()
+			log.Info().
+				Int("metrics_port", cfg.MetricsPort).
+				Msg("Metrics server started")
+		}
+	}
 
 	// Create connection manager with configured limits
 	connMgr := server.NewConnectionManager(cfg.MaxConnectionsPerClient, cfg.MaxTotalConnections)
@@ -126,6 +145,8 @@ func runServer(_ *cobra.Command, _ []string) {
 }
 
 func handleConnection(conn *quic.Connection, pskMap map[string]string, connMgr *server.ConnectionManager) {
+	startTime := time.Now()
+
 	log.Info().
 		Str("remote_addr", conn.RemoteAddr()).
 		Str("local_addr", conn.LocalAddr()).
@@ -150,11 +171,15 @@ func handleConnection(conn *quic.Connection, pskMap map[string]string, connMgr *
 			Err(err).
 			Str("remote_addr", conn.RemoteAddr()).
 			Msg("Authentication failed")
+		metrics.RecordAuthAttempt(false)
 		if closeErr := conn.Close(); closeErr != nil {
 			log.Warn().Err(closeErr).Msg("Failed to close connection after authentication failure")
 		}
 		return
 	}
+
+	// Record successful authentication
+	metrics.RecordAuthAttempt(true)
 
 	// Get authenticated client ID
 	clientID := controlHandler.GetClientID()
@@ -174,7 +199,11 @@ func handleConnection(conn *quic.Connection, pskMap map[string]string, connMgr *
 
 	// Register connection
 	connMgr.AddConnection(clientID)
-	defer connMgr.RemoveConnection(clientID)
+	metrics.RecordConnectionStart(clientID)
+	defer func() {
+		connMgr.RemoveConnection(clientID)
+		metrics.RecordConnectionEnd(time.Since(startTime))
+	}()
 
 	log.Info().
 		Str("remote_addr", conn.RemoteAddr()).
