@@ -422,13 +422,17 @@ func TestReadMessageBufferedTooLarge(t *testing.T) {
 
 	// Write a length that exceeds MaxMessageSize
 	largeLength := uint32(MaxMessageSize + 1)
-	writer.Write([]byte{
+	if _, err := writer.Write([]byte{
 		byte(largeLength >> 24),
 		byte(largeLength >> 16),
 		byte(largeLength >> 8),
 		byte(largeLength),
-	})
-	writer.Flush()
+	}); err != nil {
+		t.Fatalf("Failed to write test data: %v", err)
+	}
+	if err := writer.Flush(); err != nil {
+		t.Fatalf("Failed to flush writer: %v", err)
+	}
 
 	reader := bufio.NewReader(&buf)
 	_, err := ReadMessageBuffered(reader)
