@@ -458,3 +458,519 @@ func TestStreamMultiplexing(t *testing.T) {
 
 	t.Log("✅ Stream multiplexing successful (3 streams tested)")
 }
+
+// TestTCPForwarding tests end-to-end TCP forwarding through QUIC tunnel
+func TestTCPForwarding(t *testing.T) {
+	logger.Setup(logger.Config{
+		Level:  logger.ErrorLevel,
+		Pretty: false,
+	})
+
+	certFile, keyFile := generateTestCerts(t)
+
+	// Create echo TCP server (this simulates the remote service we want to reach)
+	echoListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to create echo server: %v", err)
+	}
+	defer echoListener.Close()
+
+	echoAddr := echoListener.Addr().String()
+	t.Logf("Echo server listening on %s", echoAddr)
+
+	// Start echo server
+	go func() {
+		for {
+			conn, err := echoListener.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				buf := make([]byte, 4096)
+				for {
+					n, err := c.Read(buf)
+					if err != nil {
+						return
+					}
+					if _, err := c.Write(buf[:n]); err != nil {
+						return
+					}
+				}
+			}(conn)
+		}
+	}()
+
+	// Create QUIC server
+	server, err := quic.NewServer(quic.ServerConfig{
+		ListenAddr: "127.0.0.1:0",
+		TLSCert:    certFile,
+		TLSKey:     keyFile,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create QUIC server: %v", err)
+	}
+
+	serverStarted := make(chan error, 1)
+	go func() {
+		serverStarted <- server.Start("127.0.0.1:0")
+	}()
+
+	select {
+	case err := <-serverStarted:
+		if err != nil {
+			t.Fatalf("Server failed to start: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+	}
+	defer server.Close()
+
+	serverAddr := server.Addr().String()
+	t.Logf("QUIC server listening on %s", serverAddr)
+
+	// Setup PSK
+	pskEncoded := base64.StdEncoding.EncodeToString([]byte(testPSK))
+	pskMap := map[string]string{testClientID: pskEncoded}
+
+	// Accept QUIC connection in background
+	connectionAccepted := make(chan *quic.Connection, 1)
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		conn, err := server.Accept()
+		if err != nil {
+			return
+		}
+		connectionAccepted <- conn
+	}()
+
+	// Create QUIC client
+	client, err := quic.NewClient(quic.ClientConfig{
+		ServerAddr:         serverAddr,
+		InsecureSkipVerify: true,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create QUIC client: %v", err)
+	}
+	defer client.Close()
+
+	if err := client.Connect(); err != nil {
+		t.Fatalf("Failed to connect QUIC client: %v", err)
+	}
+
+	// Wait for server to accept connection
+	var serverConn *quic.Connection
+	select {
+	case serverConn = <-connectionAccepted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for QUIC connection")
+	}
+
+	// Authenticate
+	clientHandler := control.NewClientHandler(testClientID, pskEncoded, client.Connection())
+	serverHandler := control.NewServerHandler(pskMap, serverConn)
+
+	go func() {
+		stream, _ := serverConn.AcceptStream()
+		serverHandler.HandleControlStream(stream)
+	}()
+
+	if err := clientHandler.Authenticate(); err != nil {
+		t.Fatalf("Authentication failed: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Create multiplexers
+	serverMux := mux.NewMultiplexer(serverConn)
+	clientMux := mux.NewMultiplexer(client.Connection())
+
+	// Register TCP handler on server that forwards to echo server
+	serverMux.RegisterHandler(mux.ProtocolTCP, func(_ context.Context, stream *quicgo.Stream, header *mux.StreamHeader) error {
+		// Parse TCP metadata
+		metadata, err := mux.DecodeTCPMetadata(header.Metadata)
+		if err != nil {
+			return fmt.Errorf("failed to decode TCP metadata: %w", err)
+		}
+
+		t.Logf("Server forwarding to %s", metadata.TargetAddr)
+
+		// Connect to echo server
+		targetConn, err := net.Dial("tcp", echoAddr)
+		if err != nil {
+			return fmt.Errorf("failed to connect to target: %w", err)
+		}
+		defer targetConn.Close()
+
+		// Bidirectional copy
+		errChan := make(chan error, 2)
+
+		go func() {
+			_, err := io.Copy(targetConn, stream)
+			errChan <- err
+		}()
+
+		go func() {
+			_, err := io.Copy(stream, targetConn)
+			errChan <- err
+		}()
+
+		// Wait for either direction to complete
+		return <-errChan
+	})
+
+	// Server accepts and handles streams
+	go func() {
+		for i := 0; i < 3; i++ {
+			stream, err := serverConn.AcceptStream()
+			if err != nil {
+				return
+			}
+
+			// Read stream header
+			headerBuf := make([]byte, 4)
+			if _, err := io.ReadFull(stream, headerBuf); err != nil {
+				continue
+			}
+
+			header := &mux.StreamHeader{
+				Version:  headerBuf[0],
+				Protocol: mux.ProtocolID(headerBuf[1]),
+				Flags:    headerBuf[2],
+			}
+
+			metaLen := int(headerBuf[3])
+			if metaLen > 0 {
+				metadata := make([]byte, metaLen)
+				if _, err := io.ReadFull(stream, metadata); err != nil {
+					continue
+				}
+				header.Metadata = metadata
+			}
+
+			if header.Protocol == mux.ProtocolControl {
+				continue
+			}
+
+			muxStream := &mux.Stream{
+				StreamID: uint64(stream.StreamID()),
+				Stream:   stream,
+				Header:   header,
+			}
+			go serverMux.HandleStream(muxStream)
+		}
+	}()
+
+	// Client opens TCP stream and sends test data
+	testData := []string{
+		"Hello, TCP tunnel!",
+		"Second message through tunnel",
+		"Final test message",
+	}
+
+	for i, msg := range testData {
+		// Create TCP metadata
+		metadata, err := mux.EncodeTCPMetadata(mux.TCPMetadata{
+			SourceAddr: "client",
+			TargetAddr: echoAddr,
+		})
+		if err != nil {
+			t.Fatalf("Test %d: failed to encode metadata: %v", i+1, err)
+		}
+
+		// Open stream through multiplexer
+		muxStream, err := clientMux.OpenStream(mux.ProtocolTCP, metadata)
+		if err != nil {
+			t.Fatalf("Test %d: failed to open stream: %v", i+1, err)
+		}
+
+		// Send data
+		if _, err := muxStream.Stream.Write([]byte(msg)); err != nil {
+			t.Fatalf("Test %d: failed to write: %v", i+1, err)
+		}
+
+		// Read echo response
+		buf := make([]byte, len(msg))
+		if _, err := io.ReadFull(muxStream.Stream, buf); err != nil {
+			t.Fatalf("Test %d: failed to read: %v", i+1, err)
+		}
+
+		// Verify echo
+		if string(buf) != msg {
+			t.Fatalf("Test %d: data mismatch: got %q, want %q", i+1, buf, msg)
+		}
+
+		// Close stream
+		muxStream.Stream.Close()
+
+		t.Logf("Test %d: ✅ %s", i+1, msg)
+	}
+
+	t.Log("✅ TCP forwarding successful (3 messages echoed)")
+}
+
+// TestUDPForwarding tests end-to-end UDP forwarding through QUIC tunnel
+func TestUDPForwarding(t *testing.T) {
+	logger.Setup(logger.Config{
+		Level:  logger.ErrorLevel,
+		Pretty: false,
+	})
+
+	certFile, keyFile := generateTestCerts(t)
+
+	// Create echo UDP server (this simulates the remote service we want to reach)
+	echoConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
+	if err != nil {
+		t.Fatalf("Failed to create UDP echo server: %v", err)
+	}
+	defer echoConn.Close()
+
+	echoAddr := echoConn.LocalAddr().String()
+	t.Logf("UDP echo server listening on %s", echoAddr)
+
+	// Start UDP echo server
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, addr, err := echoConn.ReadFromUDP(buf)
+			if err != nil {
+				return
+			}
+			// Echo back
+			if _, err := echoConn.WriteToUDP(buf[:n], addr); err != nil {
+				return
+			}
+		}
+	}()
+
+	// Create QUIC server
+	server, err := quic.NewServer(quic.ServerConfig{
+		ListenAddr: "127.0.0.1:0",
+		TLSCert:    certFile,
+		TLSKey:     keyFile,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create QUIC server: %v", err)
+	}
+
+	serverStarted := make(chan error, 1)
+	go func() {
+		serverStarted <- server.Start("127.0.0.1:0")
+	}()
+
+	select {
+	case err := <-serverStarted:
+		if err != nil {
+			t.Fatalf("Server failed to start: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+	}
+	defer server.Close()
+
+	serverAddr := server.Addr().String()
+	t.Logf("QUIC server listening on %s", serverAddr)
+
+	// Setup PSK
+	pskEncoded := base64.StdEncoding.EncodeToString([]byte(testPSK))
+	pskMap := map[string]string{testClientID: pskEncoded}
+
+	// Accept QUIC connection in background
+	connectionAccepted := make(chan *quic.Connection, 1)
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		conn, err := server.Accept()
+		if err != nil {
+			return
+		}
+		connectionAccepted <- conn
+	}()
+
+	// Create QUIC client
+	client, err := quic.NewClient(quic.ClientConfig{
+		ServerAddr:         serverAddr,
+		InsecureSkipVerify: true,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create QUIC client: %v", err)
+	}
+	defer client.Close()
+
+	if err := client.Connect(); err != nil {
+		t.Fatalf("Failed to connect QUIC client: %v", err)
+	}
+
+	// Wait for server to accept connection
+	var serverConn *quic.Connection
+	select {
+	case serverConn = <-connectionAccepted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for QUIC connection")
+	}
+
+	// Authenticate
+	clientHandler := control.NewClientHandler(testClientID, pskEncoded, client.Connection())
+	serverHandler := control.NewServerHandler(pskMap, serverConn)
+
+	go func() {
+		stream, _ := serverConn.AcceptStream()
+		serverHandler.HandleControlStream(stream)
+	}()
+
+	if err := clientHandler.Authenticate(); err != nil {
+		t.Fatalf("Authentication failed: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Create multiplexers
+	serverMux := mux.NewMultiplexer(serverConn)
+	clientMux := mux.NewMultiplexer(client.Connection())
+
+	// Register UDP handler on server that forwards to echo server
+	serverMux.RegisterHandler(mux.ProtocolUDP, func(_ context.Context, stream *quicgo.Stream, header *mux.StreamHeader) error {
+		// Parse UDP metadata
+		metadata, err := mux.DecodeUDPMetadata(header.Metadata)
+		if err != nil {
+			return fmt.Errorf("failed to decode UDP metadata: %w", err)
+		}
+
+		t.Logf("Server forwarding UDP to %s", metadata.TargetAddr)
+
+		// Create UDP connection to target
+		targetAddr, err := net.ResolveUDPAddr("udp", echoAddr)
+		if err != nil {
+			return fmt.Errorf("failed to resolve target address: %w", err)
+		}
+
+		udpConn, err := net.DialUDP("udp", nil, targetAddr)
+		if err != nil {
+			return fmt.Errorf("failed to dial UDP target: %w", err)
+		}
+		defer udpConn.Close()
+
+		// Bidirectional forwarding between QUIC stream and UDP
+		errChan := make(chan error, 2)
+
+		// QUIC -> UDP
+		go func() {
+			buf := make([]byte, 4096)
+			for {
+				n, err := stream.Read(buf)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				if _, err := udpConn.Write(buf[:n]); err != nil {
+					errChan <- err
+					return
+				}
+			}
+		}()
+
+		// UDP -> QUIC
+		go func() {
+			buf := make([]byte, 4096)
+			for {
+				n, err := udpConn.Read(buf)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				if _, err := stream.Write(buf[:n]); err != nil {
+					errChan <- err
+					return
+				}
+			}
+		}()
+
+		return <-errChan
+	})
+
+	// Server accepts and handles streams
+	go func() {
+		for i := 0; i < 3; i++ {
+			stream, err := serverConn.AcceptStream()
+			if err != nil {
+				return
+			}
+
+			// Read stream header
+			headerBuf := make([]byte, 4)
+			if _, err := io.ReadFull(stream, headerBuf); err != nil {
+				continue
+			}
+
+			header := &mux.StreamHeader{
+				Version:  headerBuf[0],
+				Protocol: mux.ProtocolID(headerBuf[1]),
+				Flags:    headerBuf[2],
+			}
+
+			metaLen := int(headerBuf[3])
+			if metaLen > 0 {
+				metadata := make([]byte, metaLen)
+				if _, err := io.ReadFull(stream, metadata); err != nil {
+					continue
+				}
+				header.Metadata = metadata
+			}
+
+			if header.Protocol == mux.ProtocolControl {
+				continue
+			}
+
+			muxStream := &mux.Stream{
+				StreamID: uint64(stream.StreamID()),
+				Stream:   stream,
+				Header:   header,
+			}
+			go serverMux.HandleStream(muxStream)
+		}
+	}()
+
+	// Client opens UDP stream and sends test data
+	testData := []string{
+		"UDP packet 1",
+		"UDP packet 2",
+		"UDP packet 3",
+	}
+
+	for i, msg := range testData {
+		// Create UDP metadata
+		metadata, err := mux.EncodeUDPMetadata(mux.UDPMetadata{
+			SourceAddr: "client",
+			TargetAddr: echoAddr,
+		})
+		if err != nil {
+			t.Fatalf("Test %d: failed to encode metadata: %v", i+1, err)
+		}
+
+		// Open stream through multiplexer
+		muxStream, err := clientMux.OpenStream(mux.ProtocolUDP, metadata)
+		if err != nil {
+			t.Fatalf("Test %d: failed to open stream: %v", i+1, err)
+		}
+
+		// Send UDP data
+		if _, err := muxStream.Stream.Write([]byte(msg)); err != nil {
+			t.Fatalf("Test %d: failed to write: %v", i+1, err)
+		}
+
+		// Read echo response
+		buf := make([]byte, len(msg))
+		if _, err := io.ReadFull(muxStream.Stream, buf); err != nil {
+			t.Fatalf("Test %d: failed to read: %v", i+1, err)
+		}
+
+		// Verify echo
+		if string(buf) != msg {
+			t.Fatalf("Test %d: data mismatch: got %q, want %q", i+1, buf, msg)
+		}
+
+		// Close stream
+		muxStream.Stream.Close()
+
+		t.Logf("Test %d: ✅ %s", i+1, msg)
+	}
+
+	t.Log("✅ UDP forwarding successful (3 datagrams echoed)")
+}
