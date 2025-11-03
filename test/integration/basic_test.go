@@ -10,6 +10,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -487,7 +488,7 @@ func TestStreamMultiplexing(t *testing.T) {
 		// Echo back whatever is sent
 		buf := make([]byte, 1024)
 		n, err := stream.Read(buf)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return fmt.Errorf("stream read error: %w", err)
 		}
 		if _, err = stream.Write(buf[:n]); err != nil {
