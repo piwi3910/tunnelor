@@ -67,7 +67,11 @@ type UDPSession struct {
 
 // UDPToQUIC bridges UDP datagrams to a QUIC stream
 func UDPToQUIC(ctx context.Context, udpConn *net.UDPConn, quicStream *quicgo.Stream) error {
-	defer (*quicStream).Close()
+	defer func() {
+		if err := (*quicStream).Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close QUIC stream")
+		}
+	}()
 
 	log.Debug().
 		Str("local_addr", udpConn.LocalAddr().String()).
@@ -112,7 +116,11 @@ func UDPToQUIC(ctx context.Context, udpConn *net.UDPConn, quicStream *quicgo.Str
 
 // QUICToUDP bridges a QUIC stream to UDP datagrams
 func QUICToUDP(ctx context.Context, quicStream *quicgo.Stream, targetAddr string) error {
-	defer (*quicStream).Close()
+	defer func() {
+		if err := (*quicStream).Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close QUIC stream")
+		}
+	}()
 
 	log.Debug().
 		Str("target_addr", targetAddr).
@@ -130,7 +138,11 @@ func QUICToUDP(ctx context.Context, quicStream *quicgo.Stream, targetAddr string
 	if err != nil {
 		return fmt.Errorf("failed to connect to UDP target %s: %w", targetAddr, err)
 	}
-	defer udpConn.Close()
+	defer func() {
+		if err := udpConn.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close UDP connection")
+		}
+	}()
 
 	log.Info().
 		Str("target_addr", targetAddr).
@@ -281,7 +293,11 @@ func (l *UDPListener) handleDatagram(data []byte, remoteAddr *net.UDPAddr) {
 		log.Error().Err(err).Msg("Failed to open QUIC stream for UDP datagram")
 		return
 	}
-	defer (*quicStream).Close()
+	defer func() {
+		if err := (*quicStream).Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close QUIC stream")
+		}
+	}()
 
 	// Create datagram wrapper
 	datagram := &UDPDatagram{
