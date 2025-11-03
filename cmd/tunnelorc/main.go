@@ -207,11 +207,19 @@ func runConnect(_ *cobra.Command, _ []string) error {
 		Int("forwards", len(cfg.Forwards)).
 		Msg("Client configuration loaded")
 
-	// Create QUIC client
-	quicClient, err := quic.NewClient(quic.ClientConfig{
+	// Create QUIC client with proper TLS configuration
+	clientConfig := quic.ClientConfig{
 		ServerAddr:         cfg.Server,
-		InsecureSkipVerify: true, // TODO: Add CA certificate support
-	})
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		CAFile:             cfg.CAFile,
+	}
+
+	// Warn if insecure mode is enabled
+	if cfg.InsecureSkipVerify {
+		log.Warn().Msg("TLS certificate verification is disabled - NOT RECOMMENDED for production!")
+	}
+
+	quicClient, err := quic.NewClient(clientConfig)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create QUIC client")
 		return fmt.Errorf("failed to create QUIC client: %w", err)

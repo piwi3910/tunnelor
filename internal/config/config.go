@@ -10,11 +10,13 @@ import (
 
 // ServerConfig holds server-specific configuration
 type ServerConfig struct {
-	Auth        ServerAuthConfig `mapstructure:"auth"`
-	Listen      string           `mapstructure:"listen"`
-	TLSCert     string           `mapstructure:"tls_cert"`
-	TLSKey      string           `mapstructure:"tls_key"`
-	MetricsPort int              `mapstructure:"metrics_port"`
+	Auth                   ServerAuthConfig `mapstructure:"auth"`
+	Listen                 string           `mapstructure:"listen"`
+	TLSCert                string           `mapstructure:"tls_cert"`
+	TLSKey                 string           `mapstructure:"tls_key"`
+	MetricsPort            int              `mapstructure:"metrics_port"`
+	MaxConnectionsPerClient int             `mapstructure:"max_connections_per_client"` // Max connections per client ID (0 = unlimited)
+	MaxTotalConnections    int              `mapstructure:"max_total_connections"`      // Max total connections (0 = unlimited)
 }
 
 // ServerAuthConfig holds server authentication configuration
@@ -24,10 +26,12 @@ type ServerAuthConfig struct {
 
 // ClientConfig holds client-specific configuration
 type ClientConfig struct {
-	Server   string          `mapstructure:"server"`
-	ClientID string          `mapstructure:"client_id"`
-	PSK      string          `mapstructure:"psk"`
-	Forwards []ForwardConfig `mapstructure:"forwards"`
+	Server             string          `mapstructure:"server"`
+	ClientID           string          `mapstructure:"client_id"`
+	PSK                string          `mapstructure:"psk"`
+	CAFile             string          `mapstructure:"ca_file"`              // Optional: CA certificate file for TLS verification
+	InsecureSkipVerify bool            `mapstructure:"insecure_skip_verify"` // Optional: Skip TLS verification (NOT recommended for production)
+	Forwards           []ForwardConfig `mapstructure:"forwards"`
 }
 
 // ForwardConfig defines a forwarding rule
