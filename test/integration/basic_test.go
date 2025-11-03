@@ -69,7 +69,7 @@ func generateTestCerts(t *testing.T) (certFile, keyFile string) {
 	}
 
 	// Write certificate
-	certOut, err := os.Create(certFile)
+	certOut, err := os.Create(certFile) // #nosec G304 -- Test file path is controlled by test setup
 	if err != nil {
 		t.Fatalf("Failed to create cert file: %v", err)
 	}
@@ -79,7 +79,7 @@ func generateTestCerts(t *testing.T) (certFile, keyFile string) {
 	}
 
 	// Write private key
-	keyOut, err := os.Create(keyFile)
+	keyOut, err := os.Create(keyFile) // #nosec G304 -- Test file path is controlled by test setup
 	if err != nil {
 		t.Fatalf("Failed to create key file: %v", err)
 	}

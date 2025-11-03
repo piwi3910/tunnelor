@@ -98,7 +98,7 @@ func UDPToQUIC(ctx context.Context, udpConn *net.UDPConn, quicStream *quicgo.Str
 
 		// Create datagram wrapper
 		datagram := &UDPDatagram{
-			Length: uint16(n),
+			Length: uint16(n), // #nosec G115 -- n <= 65535 (max UDP size), safe for uint16
 			Data:   buffer[:n],
 		}
 
@@ -301,7 +301,7 @@ func (l *UDPListener) handleDatagram(data []byte, remoteAddr *net.UDPAddr) {
 
 	// Create datagram wrapper
 	datagram := &UDPDatagram{
-		Length: uint16(len(data)),
+		Length: uint16(len(data)), // #nosec G115 -- UDP packet data is limited to 65535 bytes, safe for uint16
 		Data:   data,
 	}
 

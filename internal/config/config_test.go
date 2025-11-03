@@ -298,7 +298,7 @@ auth:
 		t.Run(tt.name, func(t *testing.T) {
 			// Write config to temp file
 			configPath := filepath.Join(tmpDir, tt.name+".yaml")
-			err := os.WriteFile(configPath, []byte(tt.configYAML), 0o644)
+			err := os.WriteFile(configPath, []byte(tt.configYAML), 0o600)
 			if err != nil {
 				t.Fatalf("Failed to write test config: %v", err)
 			}
@@ -386,7 +386,7 @@ func TestLoadClientConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			configPath := filepath.Join(tmpDir, tt.name+".yaml")
-			err := os.WriteFile(configPath, []byte(tt.configYAML), 0o644)
+			err := os.WriteFile(configPath, []byte(tt.configYAML), 0o600)
 			if err != nil {
 				t.Fatalf("Failed to write test config: %v", err)
 			}

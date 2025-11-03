@@ -30,8 +30,8 @@ func LoadClientTLSConfig(serverName string, insecureSkipVerify bool) (*tls.Confi
 	tlsConfig := &tls.Config{
 		ServerName:         serverName,
 		NextProtos:         []string{"tunnelor"},
-		MinVersion:         tls.VersionTLS13, // QUIC requires TLS 1.3
-		InsecureSkipVerify: insecureSkipVerify,
+		MinVersion:         tls.VersionTLS13,                      // QUIC requires TLS 1.3
+		InsecureSkipVerify: insecureSkipVerify, // #nosec G402 -- Controlled by user configuration for dev/test environments
 	}
 
 	return tlsConfig, nil
@@ -40,7 +40,7 @@ func LoadClientTLSConfig(serverName string, insecureSkipVerify bool) (*tls.Confi
 // LoadClientTLSConfigWithCA loads TLS configuration with custom CA certificate
 func LoadClientTLSConfigWithCA(serverName, caFile string) (*tls.Config, error) {
 	// Load CA certificate
-	caCert, err := os.ReadFile(caFile)
+	caCert, err := os.ReadFile(caFile) // #nosec G304 -- CA file path is from user configuration
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CA certificate: %w", err)
 	}

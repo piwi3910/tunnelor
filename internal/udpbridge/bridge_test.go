@@ -139,7 +139,7 @@ func TestMultipleDatagrams(t *testing.T) {
 
 	for _, data := range datagrams {
 		dg := &UDPDatagram{
-			Length: uint16(len(data)), // #nosec G115 -- Test data is small, fits in uint16
+			Length: uint16(len(data)), // #nosec G115 -- Test data is small, fits in uint16 // #nosec G115 -- Test data is small, fits in uint16
 			Data:   data,
 		}
 		err := WriteUDPDatagram(&buf, dg)
@@ -312,7 +312,7 @@ func TestDatagramWithVariousDataPatterns(t *testing.T) {
 func BenchmarkWriteUDPDatagram(b *testing.B) {
 	data := make([]byte, 1400) // Typical MTU size
 	datagram := &UDPDatagram{
-		Length: uint16(len(data)),
+		Length: uint16(len(data)), // #nosec G115 -- Test data is small, fits in uint16
 		Data:   data,
 	}
 
@@ -328,7 +328,7 @@ func BenchmarkWriteUDPDatagram(b *testing.B) {
 func BenchmarkReadUDPDatagram(b *testing.B) {
 	data := make([]byte, 1400)
 	datagram := &UDPDatagram{
-		Length: uint16(len(data)),
+		Length: uint16(len(data)), // #nosec G115 -- Test data is small, fits in uint16
 		Data:   data,
 	}
 
