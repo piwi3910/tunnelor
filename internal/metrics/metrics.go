@@ -4,11 +4,17 @@ package metrics
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
+)
+
+var (
+	registerOnce sync.Once
+	registered   bool
 )
 
 var (
@@ -105,20 +111,23 @@ func Start(port int) (*Server, error) {
 
 // Start starts the metrics server
 func (s *Server) Start() error {
-	// Register all metrics
-	prometheus.MustRegister(
-		ActiveConnections,
-		TotalConnections,
-		ActiveStreams,
-		TotalStreams,
-		StreamErrors,
-		BytesTransferred,
-		AuthenticationAttempts,
-		StreamLatency,
-		ConnectionDuration,
-		UDPSessionCount,
-		StreamReconnects,
-	)
+	// Register all metrics (only once)
+	registerOnce.Do(func() {
+		prometheus.MustRegister(
+			ActiveConnections,
+			TotalConnections,
+			ActiveStreams,
+			TotalStreams,
+			StreamErrors,
+			BytesTransferred,
+			AuthenticationAttempts,
+			StreamLatency,
+			ConnectionDuration,
+			UDPSessionCount,
+			StreamReconnects,
+		)
+		registered = true
+	})
 
 	// Create HTTP server
 	mux := http.NewServeMux()
