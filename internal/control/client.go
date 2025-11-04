@@ -200,3 +200,113 @@ func (h *ClientHandler) GetSessionID() string {
 func (h *ClientHandler) IsAuthenticated() bool {
 	return h.sessionID != ""
 }
+
+// AddForward sends a FORWARD_ADD message to request adding a new forward
+func (h *ClientHandler) AddForward(stream *quicgo.Stream, local, remote, proto, forwardType string) (*ForwardOKMessage, error) {
+	addMsg := ForwardAddMessage{
+		Local:    local,
+		Remote:   remote,
+		Proto:    proto,
+		ClientID: h.clientID,
+		Type:     forwardType,
+	}
+
+	msg, err := NewMessage(MessageTypeForwardAdd, addMsg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create FORWARD_ADD message: %w", err)
+	}
+
+	if err := WriteMessage(stream, msg); err != nil {
+		return nil, fmt.Errorf("failed to send FORWARD_ADD message: %w", err)
+	}
+
+	log.Debug().
+		Str("local", local).
+		Str("remote", remote).
+		Str("proto", proto).
+		Str("type", forwardType).
+		Msg("Sent FORWARD_ADD message")
+
+	// Wait for response
+	respMsg, err := ReadMessage(stream)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read forward add response: %w", err)
+	}
+
+	return h.handleForwardResponse(respMsg)
+}
+
+// RemoveForward sends a FORWARD_REMOVE message to request removing a forward
+func (h *ClientHandler) RemoveForward(stream *quicgo.Stream, forwardID string) (*ForwardOKMessage, error) {
+	removeMsg := ForwardRemoveMessage{
+		ForwardID: forwardID,
+	}
+
+	return h.sendForwardCommand(stream, MessageTypeForwardRemove, removeMsg, "FORWARD_REMOVE", forwardID)
+}
+
+// ListForwards sends a FORWARD_LIST message to request listing active forwards
+func (h *ClientHandler) ListForwards(stream *quicgo.Stream, filterType string) (*ForwardOKMessage, error) {
+	listMsg := ForwardListMessage{
+		Type: filterType,
+	}
+
+	return h.sendForwardCommand(stream, MessageTypeForwardList, listMsg, "FORWARD_LIST", filterType)
+}
+
+// sendForwardCommand is a helper to send forward management commands and handle responses
+func (h *ClientHandler) sendForwardCommand(stream *quicgo.Stream, msgType MessageType, data interface{}, cmdName, logValue string) (*ForwardOKMessage, error) {
+	msg, err := NewMessage(msgType, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s message: %w", cmdName, err)
+	}
+
+	if err := WriteMessage(stream, msg); err != nil {
+		return nil, fmt.Errorf("failed to send %s message: %w", cmdName, err)
+	}
+
+	log.Debug().
+		Str("value", logValue).
+		Msgf("Sent %s message", cmdName)
+
+	// Wait for response
+	respMsg, err := ReadMessage(stream)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s response: %w", cmdName, err)
+	}
+
+	return h.handleForwardResponse(respMsg)
+}
+
+// handleForwardResponse handles responses to forward management commands
+func (h *ClientHandler) handleForwardResponse(msg *Message) (*ForwardOKMessage, error) {
+	switch msg.Type {
+	case MessageTypeForwardOK:
+		var okMsg ForwardOKMessage
+		if err := msg.ParseData(&okMsg); err != nil {
+			return nil, fmt.Errorf("failed to parse FORWARD_OK message: %w", err)
+		}
+
+		log.Info().
+			Str("forward_id", okMsg.ForwardID).
+			Str("message", okMsg.Message).
+			Msg("Forward operation successful")
+
+		return &okMsg, nil
+
+	case MessageTypeForwardFail:
+		var failMsg ForwardFailMessage
+		if err := msg.ParseData(&failMsg); err != nil {
+			return nil, fmt.Errorf("forward operation failed: %w", err)
+		}
+
+		log.Error().
+			Str("reason", failMsg.Reason).
+			Msg("Forward operation failed")
+
+		return nil, fmt.Errorf("forward operation failed: %s", failMsg.Reason)
+
+	default:
+		return nil, fmt.Errorf("unexpected response type: %s", msg.Type)
+	}
+}

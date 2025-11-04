@@ -32,6 +32,21 @@ const (
 
 	// MessageTypePong is sent in response to ping
 	MessageTypePong MessageType = "PONG"
+
+	// MessageTypeForwardAdd is sent to request adding a new forward
+	MessageTypeForwardAdd MessageType = "FORWARD_ADD"
+
+	// MessageTypeForwardRemove is sent to request removing a forward
+	MessageTypeForwardRemove MessageType = "FORWARD_REMOVE"
+
+	// MessageTypeForwardList is sent to request listing active forwards
+	MessageTypeForwardList MessageType = "FORWARD_LIST"
+
+	// MessageTypeForwardOK is sent when forward operation succeeds
+	MessageTypeForwardOK MessageType = "FORWARD_OK"
+
+	// MessageTypeForwardFail is sent when forward operation fails
+	MessageTypeForwardFail MessageType = "FORWARD_FAIL"
 )
 
 // Message represents a control plane message
@@ -92,6 +107,48 @@ type PingMessage struct {
 type PongMessage struct {
 	Timestamp int64  `json:"timestamp"`
 	Seq       uint64 `json:"seq"`
+}
+
+// ForwardAddMessage requests adding a new forward tunnel
+type ForwardAddMessage struct {
+	Local    string `json:"local"`     // Local address to listen on (forward) or public address (reverse)
+	Remote   string `json:"remote"`    // Remote address to connect to
+	Proto    string `json:"proto"`     // Protocol: "tcp" or "udp"
+	ClientID string `json:"client_id"` // Client ID (for server-side reverse tunnels)
+	Type     string `json:"type"`      // "forward" or "reverse"
+}
+
+// ForwardRemoveMessage requests removing a forward tunnel
+type ForwardRemoveMessage struct {
+	ForwardID string `json:"forward_id"` // ID of the forward to remove
+}
+
+// ForwardListMessage requests listing active forwards
+type ForwardListMessage struct {
+	Type string `json:"type,omitempty"` // Optional filter: "forward", "reverse", or empty for all
+}
+
+// ForwardInfo represents information about an active forward
+type ForwardInfo struct {
+	ID       string `json:"id"`        // Unique identifier
+	Local    string `json:"local"`     // Local/public address
+	Remote   string `json:"remote"`    // Remote address
+	Proto    string `json:"proto"`     // Protocol
+	ClientID string `json:"client_id"` // Client ID (for reverse tunnels)
+	Type     string `json:"type"`      // "forward" or "reverse"
+	Active   bool   `json:"active"`    // Whether the forward is currently active
+}
+
+// ForwardOKMessage indicates successful forward operation
+type ForwardOKMessage struct {
+	ForwardID string         `json:"forward_id,omitempty"`
+	Message   string         `json:"message,omitempty"`
+	Forwards  []*ForwardInfo `json:"forwards,omitempty"`
+}
+
+// ForwardFailMessage indicates failed forward operation
+type ForwardFailMessage struct {
+	Reason string `json:"reason"` // Error reason
 }
 
 // NewMessage creates a new control message
