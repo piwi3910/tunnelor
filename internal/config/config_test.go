@@ -16,10 +16,10 @@ func TestValidateServerConfig(t *testing.T) {
 	testKey := filepath.Join(tmpDir, "test.key")
 
 	// Create dummy cert/key files
-	if err := os.WriteFile(testCert, []byte("test cert"), 0600); err != nil {
+	if err := os.WriteFile(testCert, []byte("test cert"), 0o600); err != nil {
 		t.Fatalf("Failed to create test cert: %v", err)
 	}
-	if err := os.WriteFile(testKey, []byte("test key"), 0600); err != nil {
+	if err := os.WriteFile(testKey, []byte("test key"), 0o600); err != nil {
 		t.Fatalf("Failed to create test key: %v", err)
 	}
 
@@ -260,10 +260,10 @@ func TestLoadServerConfig(t *testing.T) {
 	testKey := filepath.Join(tmpDir, "test.key")
 
 	// Create dummy cert/key files
-	if err := os.WriteFile(testCert, []byte("test cert"), 0600); err != nil {
+	if err := os.WriteFile(testCert, []byte("test cert"), 0o600); err != nil {
 		t.Fatalf("Failed to create test cert: %v", err)
 	}
-	if err := os.WriteFile(testKey, []byte("test key"), 0600); err != nil {
+	if err := os.WriteFile(testKey, []byte("test key"), 0o600); err != nil {
 		t.Fatalf("Failed to create test key: %v", err)
 	}
 

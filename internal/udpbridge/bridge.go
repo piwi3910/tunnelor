@@ -415,23 +415,25 @@ func (l *UDPListener) cleanupSessions() {
 			l.sessionMutex.Lock()
 			now := time.Now()
 			for key, session := range l.sessions {
-				if now.Sub(session.LastSeen) > SessionTimeout {
-					// Close the session's QUIC stream
-					session.StreamMutex.Lock()
-					if session.Stream != nil {
-						if err := (*session.Stream).Close(); err != nil {
-							log.Debug().Err(err).Msg("Failed to close QUIC stream during timeout cleanup")
-						}
-						session.Stream = nil
-					}
-					session.StreamMutex.Unlock()
-
-					session.Cancel()
-					delete(l.sessions, key)
-					log.Debug().
-						Str("remote_addr", session.RemoteAddr.String()).
-						Msg("UDP session timed out")
+				if now.Sub(session.LastSeen) <= SessionTimeout {
+					continue
 				}
+
+				// Close the session's QUIC stream
+				session.StreamMutex.Lock()
+				if session.Stream != nil {
+					if err := (*session.Stream).Close(); err != nil {
+						log.Debug().Err(err).Msg("Failed to close QUIC stream during timeout cleanup")
+					}
+					session.Stream = nil
+				}
+				session.StreamMutex.Unlock()
+
+				session.Cancel()
+				delete(l.sessions, key)
+				log.Debug().
+					Str("remote_addr", session.RemoteAddr.String()).
+					Msg("UDP session timed out")
 			}
 			l.sessionMutex.Unlock()
 		}

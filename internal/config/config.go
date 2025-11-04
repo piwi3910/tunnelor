@@ -46,7 +46,7 @@ type ForwardConfig struct {
 }
 
 // loadConfig is a generic config loader that handles the common Viper operations
-func loadConfig(configPath string, configType string) (*viper.Viper, error) {
+func loadConfig(configPath, configType string) (*viper.Viper, error) {
 	v := viper.New()
 	v.SetConfigFile(configPath)
 	v.SetConfigType(configType)

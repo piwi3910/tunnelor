@@ -84,7 +84,7 @@ func (cm *ConnectionManager) GetTotalConnectionCount() int {
 }
 
 // GetStats returns connection statistics
-func (cm *ConnectionManager) GetStats() (totalConns int, uniqueClients int) {
+func (cm *ConnectionManager) GetStats() (totalConns, uniqueClients int) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.totalConnections, len(cm.connections)
