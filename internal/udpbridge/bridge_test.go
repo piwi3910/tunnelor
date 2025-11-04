@@ -441,7 +441,7 @@ func TestContextCancellation(t *testing.T) {
 	case <-ctx.Done():
 		assert.NotNil(t, ctx.Err(), "Context should have error after cancellation")
 	default:
-		assert.Fail(t, "Context should be cancelled")
+		assert.Fail(t, "Context should be canceled")
 	}
 }
 

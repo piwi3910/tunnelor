@@ -1,5 +1,3 @@
-version: "2"
-
 run:
   timeout: 5m
   tests: true
@@ -129,10 +127,11 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
   new: false
+  uniq-by-line: true
 
 output:
-  format: colored-line-number
+  formats:
+    - format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
-  uniq-by-line: true
   sort-results: true

@@ -14,7 +14,6 @@ import (
 
 var (
 	registerOnce sync.Once
-	registered   bool
 )
 
 var (
@@ -126,7 +125,6 @@ func (s *Server) Start() error {
 			UDPSessionCount,
 			StreamReconnects,
 		)
-		registered = true
 	})
 
 	// Create HTTP server

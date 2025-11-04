@@ -23,6 +23,11 @@ import (
 	"github.com/piwi3910/tunnelor/internal/udpbridge"
 )
 
+const (
+	protoTCP = "tcp"
+	protoUDP = "udp"
+)
+
 var (
 	cfgFile string
 	verbose bool
@@ -71,7 +76,7 @@ func init() {
 	// Forward command flags
 	forwardCmd.Flags().StringVar(&fwdLocal, "local", "", "local address (e.g., 127.0.0.1:8080)")
 	forwardCmd.Flags().StringVar(&fwdRemote, "remote", "", "remote address (e.g., 10.0.0.5:9000)")
-	forwardCmd.Flags().StringVar(&fwdProto, "proto", "tcp", "protocol (tcp or udp)")
+	forwardCmd.Flags().StringVar(&fwdProto, "proto", protoTCP, "protocol (tcp or udp)")
 	if err := forwardCmd.MarkFlagRequired("local"); err != nil {
 		panic(err)
 	}
@@ -112,7 +117,7 @@ func (s *clientState) addForward(req ipc.ForwardRequest) error {
 	defer s.mu.Unlock()
 
 	// Validate protocol
-	if req.Proto != "tcp" && req.Proto != "udp" {
+	if req.Proto != protoTCP && req.Proto != protoUDP {
 		return fmt.Errorf("protocol must be 'tcp' or 'udp', got '%s'", req.Proto)
 	}
 
@@ -130,7 +135,7 @@ func (s *clientState) addForward(req ipc.ForwardRequest) error {
 		Msg("Adding dynamic forward")
 
 	// Setup forward based on protocol
-	if fwd.Proto == "tcp" {
+	if fwd.Proto == protoTCP {
 		listener, errChan, err := setupTCPForward(fwd, s.multiplexer)
 		if err != nil {
 			return fmt.Errorf("failed to setup TCP forward: %w", err)
@@ -143,8 +148,7 @@ func (s *clientState) addForward(req ipc.ForwardRequest) error {
 				s.forwardErrors <- err
 			}
 		}(errChan)
-
-	} else if fwd.Proto == "udp" {
+	} else if fwd.Proto == protoUDP {
 		listener, errChan, err := setupUDPForward(fwd, s.multiplexer)
 		if err != nil {
 			return fmt.Errorf("failed to setup UDP forward: %w", err)
@@ -354,7 +358,7 @@ func runConnect(_ *cobra.Command, _ []string) error {
 	var forwardErrChans []<-chan error
 	setupSuccess := true
 	for _, fwd := range cfg.Forwards {
-		if fwd.Proto == "tcp" {
+		if fwd.Proto == protoTCP {
 			listener, errChan, err := setupTCPForward(fwd, multiplexer)
 			if err != nil {
 				log.Error().Err(err).Str("local", fwd.Local).Msg("Failed to start TCP forward")
@@ -363,7 +367,7 @@ func runConnect(_ *cobra.Command, _ []string) error {
 			}
 			state.tcpListeners = append(state.tcpListeners, listener)
 			forwardErrChans = append(forwardErrChans, errChan)
-		} else if fwd.Proto == "udp" {
+		} else if fwd.Proto == protoUDP {
 			listener, errChan, err := setupUDPForward(fwd, multiplexer)
 			if err != nil {
 				log.Error().Err(err).Str("local", fwd.Local).Msg("Failed to start UDP forward")
@@ -450,7 +454,7 @@ func runForward(_ *cobra.Command, _ []string) {
 		Msg("Adding new forward...")
 
 	// Validate protocol
-	if fwdProto != "tcp" && fwdProto != "udp" {
+	if fwdProto != protoTCP && fwdProto != protoUDP {
 		log.Fatal().Str("proto", fwdProto).Msg("Protocol must be 'tcp' or 'udp'")
 	}
 
