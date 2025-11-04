@@ -1,0 +1,72 @@
+# Tunnelord Server Configuration - Reverse Tunnel Example
+# This example shows how to configure the server to expose client-side services publicly
+
+server:
+  # Address for QUIC tunnel connections from clients
+  listen: "0.0.0.0:4433"
+
+  # TLS certificate and key for QUIC encryption
+  tls_cert: "/etc/tunnelor/server.crt"
+  tls_key: "/etc/tunnelor/server.key"
+
+  # Optional metrics endpoint (Prometheus format)
+  metrics_port: 9090
+
+  # Optional connection limits
+  max_connections_per_client: 0  # 0 = unlimited
+  max_total_connections: 0        # 0 = unlimited
+
+  # Reverse tunnel forwards
+  # These define public ports the server will listen on and forward to clients
+  forwards:
+    # Expose client's local web server publicly
+    - local: "0.0.0.0:8080"        # Public address server listens on
+      remote: "localhost:3000"     # Client will connect to this local address
+      proto: "tcp"
+      client_id: "web-client"      # Only this client handles this forward
+
+    # Expose client's local API server on different port
+    - local: "0.0.0.0:8443"
+      remote: "localhost:8443"
+      proto: "tcp"
+      client_id: "web-client"
+
+    # Example: SSH access to client machine
+    - local: "0.0.0.0:2222"
+      remote: "localhost:22"
+      proto: "tcp"
+      client_id: "dev-machine"
+
+    # Example: Database access to client's local database
+    - local: "0.0.0.0:5432"
+      remote: "localhost:5432"
+      proto: "tcp"
+      client_id: "db-client"
+
+# Authentication configuration
+auth:
+  # Map of client IDs to their base64-encoded PSKs
+  psk_map:
+    "web-client": "dGVzdC1zZWNyZXQta2V5LTEyMzQ1Njc4OTA="
+    "dev-machine": "ZGV2LW1hY2hpbmUtc2VjcmV0LWtleQ=="
+    "db-client": "ZGF0YWJhc2UtY2xpZW50LXNlY3JldC1rZXk="
+
+# How it works:
+# 1. Server starts and listens on QUIC port 4433
+# 2. Server creates public listeners on configured forward ports (8080, 8443, 2222, 5432)
+# 3. When a client (e.g., "web-client") connects and authenticates:
+#    - Server starts public listeners for that client's configured forwards
+#    - External users can now connect to those public ports
+# 4. When an external user connects to a public port:
+#    - Server accepts the connection
+#    - Server opens a QUIC stream to the authenticated client
+#    - Client connects to its local service (e.g., localhost:3000)
+#    - Data flows bidirectionally through the tunnel
+
+# Security considerations:
+# - Use proper TLS certificates (not self-signed in production)
+# - Use strong PSKs (generate with: openssl rand -base64 32)
+# - Consider firewall rules to restrict who can access public ports
+# - Implement connection limits to prevent resource exhaustion
+# - Rotate PSKs regularly
+# - Use different PSKs for different clients

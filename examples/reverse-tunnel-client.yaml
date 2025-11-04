@@ -1,0 +1,60 @@
+# Tunnelorc Client Configuration - Reverse Tunnel Example
+# This example shows how to configure the client to expose local services through a server
+
+client:
+  # Server address (QUIC tunnel server)
+  server: "quic://myserver.example.com:4433"
+
+  # Client identifier (must match server's auth configuration)
+  client_id: "web-client"
+
+  # Pre-shared key for authentication (base64 encoded)
+  # Generate with: echo -n "your-secret-key" | base64
+  psk: "dGVzdC1zZWNyZXQta2V5LTEyMzQ1Njc4OTA="
+
+  # Optional: Custom CA certificate for server verification
+  # ca_file: "/etc/tunnelor/ca.crt"
+
+  # Optional: Skip TLS verification (NOT RECOMMENDED for production)
+  insecure_skip_verify: false
+
+  # Forward tunnels (optional - can coexist with reverse tunnels)
+  # These are CLIENT-initiated forwards (client listens locally, server connects remotely)
+  forwards: []
+  #   - local: "127.0.0.1:9000"    # Client listens here
+  #     remote: "10.0.0.5:5432"    # Server connects here
+  #     proto: "tcp"
+
+# How it works:
+# 1. Client connects to server at myserver.example.com:4433
+# 2. Client authenticates with PSK
+# 3. Server checks configuration for forwards matching this client_id
+# 4. Server starts public listeners (e.g., 0.0.0.0:8080)
+# 5. Client starts accepting incoming streams from server
+# 6. When external user connects to server's public port:
+#    - Server opens QUIC stream to client
+#    - Client receives stream and parses target address (e.g., localhost:3000)
+#    - Client connects to local service
+#    - Data flows bidirectionally
+
+# Example scenario:
+# You have a web application running on localhost:3000 that you want to expose publicly:
+# 1. Start your local web server: npm start (listening on localhost:3000)
+# 2. Start tunnelorc client: ./tunnelorc connect --config reverse-tunnel-client.yaml
+# 3. Server configuration has forward: 0.0.0.0:8080 → localhost:3000 for client_id "web-client"
+# 4. External users can now access: http://myserver.example.com:8080
+# 5. Traffic flows: External User → Server:8080 → Tunnel → Client → localhost:3000
+
+# Use cases:
+# - Expose local development server for remote testing
+# - Share localhost webhooks with external services
+# - Provide temporary access to services behind NAT/firewall
+# - Remote access to development databases
+# - SSH access to machines without public IPs
+
+# Security notes:
+# - Client only connects to local services (localhost:*)
+# - Server controls which ports are exposed publicly
+# - All traffic is encrypted via QUIC/TLS 1.3
+# - Authentication via PSK prevents unauthorized clients
+# - Client never receives inbound connections directly
