@@ -4,9 +4,9 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](docs/test-documentation.md)
 
-**Tunnelor** is a high-performance, secure **forward tunneling** platform built on QUIC that enables you to access remote services through an encrypted tunnel. Similar to SSH local port forwarding (`ssh -L`), it allows you to connect to a local port and have traffic securely forwarded to a remote destination.
+**Tunnelor** is a high-performance, secure **tunneling platform** built on QUIC that supports both **forward tunnels** (access remote services) and **reverse tunnels** (expose local services). Similar to SSH port forwarding and ngrok, it provides encrypted tunneling in both directions.
 
-> **Note**: Tunnelor currently implements **forward tunnels** (outbound from client). For **reverse tunnels** (inbound to client, like ngrok), see [Issue #9](https://github.com/piwi3910/tunnelor/issues/9). Learn more about [tunnel types](docs/tunnel-types.md).
+> **✨ NEW**: Tunnelor now supports **both forward AND reverse tunnels**! Access remote services (like `ssh -L`) or expose local services publicly (like ngrok). Learn more about [tunnel types](docs/tunnel-types.md).
 
 ## 🚀 Features
 
@@ -14,6 +14,7 @@
 - **⚡ High Performance**: Buffer pooling, PSK caching, and optimized I/O operations
 - **🔀 Stream Multiplexing**: Multiple logical tunnels over a single QUIC connection
 - **🌐 Protocol Support**: Forward both TCP and UDP traffic seamlessly
+- **🔄 Bidirectional Tunneling**: Both forward tunnels (access remote) and reverse tunnels (expose local)
 - **📊 Observable**: Prometheus metrics and structured logging (JSON/pretty)
 - **🎯 Low Latency**: ~5ms overhead vs direct TCP connection
 - **💪 Concurrent**: Handle 500+ concurrent streams per connection
@@ -134,6 +135,47 @@ curl http://localhost:8080
 - Response came back through the tunnel to you
 
 This is a **forward tunnel** - useful when the server can reach services you can't access directly.
+
+### Want Reverse Tunnels Instead?
+
+To expose a local service publicly (like ngrok), use **reverse tunnels**:
+
+```bash
+# Server configuration (exposes client's localhost:3000 on public port 8080)
+cat > server.yaml <<EOF
+server:
+  listen: 0.0.0.0:4433
+  tls_cert: ./server.crt
+  tls_key: ./server.key
+
+  forwards:
+    - local: 0.0.0.0:8080        # Server listens here (public)
+      remote: localhost:3000     # Client connects here (local)
+      proto: tcp
+      client_id: client-alice
+
+auth:
+  psk_map:
+    "client-alice": "$(echo -n 'my-secret-key-alice' | base64)"
+EOF
+
+# Client just needs to connect (no forwards needed)
+cat > client.yaml <<EOF
+client:
+  server: your-server.com:4433
+  client_id: client-alice
+  psk: $(echo -n 'my-secret-key-alice' | base64)
+EOF
+
+# Start server and client
+./bin/tunnelord --config server.yaml
+./bin/tunnelorc connect --config client.yaml
+
+# Now external users can access: http://your-server.com:8080
+# Traffic flows: External User → Server:8080 → Tunnel → Client → localhost:3000
+```
+
+See [examples/reverse-tunnel-server.yaml](examples/reverse-tunnel-server.yaml) and [docs/tunnel-types.md](docs/tunnel-types.md) for more details.
 
 ## 📦 Installation
 
