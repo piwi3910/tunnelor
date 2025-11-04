@@ -90,7 +90,10 @@ func UDPToQUIC(ctx context.Context, udpConn *net.UDPConn, quicStream *quicgo.Str
 		Msg("Bridging UDP to QUIC")
 
 	// Get buffer from pool
-	bufferPtr := bufferPool.Get().(*[]byte)
+	bufferPtr, ok := bufferPool.Get().(*[]byte)
+	if !ok {
+		return fmt.Errorf("buffer pool returned unexpected type")
+	}
 	buffer := *bufferPtr
 	defer bufferPool.Put(bufferPtr)
 
@@ -247,7 +250,10 @@ func (l *UDPListener) Start() error {
 // Individual datagram handling errors are logged but don't stop the listener
 func (l *UDPListener) Serve() error {
 	// Get buffer from pool
-	bufferPtr := bufferPool.Get().(*[]byte)
+	bufferPtr, ok := bufferPool.Get().(*[]byte)
+	if !ok {
+		return fmt.Errorf("buffer pool returned unexpected type")
+	}
 	buffer := *bufferPtr
 	defer bufferPool.Put(bufferPtr)
 

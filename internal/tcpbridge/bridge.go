@@ -37,7 +37,11 @@ func BidirectionalCopy(conn1, conn2 io.ReadWriteCloser) error {
 		defer wg.Done()
 
 		// Get buffer from pool
-		bufPtr := tcpBufferPool.Get().(*[]byte)
+		bufPtr, ok := tcpBufferPool.Get().(*[]byte)
+		if !ok {
+			errChan <- fmt.Errorf("buffer pool returned unexpected type")
+			return
+		}
 		defer tcpBufferPool.Put(bufPtr)
 
 		_, err := io.CopyBuffer(conn2, conn1, *bufPtr)
@@ -57,7 +61,11 @@ func BidirectionalCopy(conn1, conn2 io.ReadWriteCloser) error {
 		defer wg.Done()
 
 		// Get buffer from pool
-		bufPtr := tcpBufferPool.Get().(*[]byte)
+		bufPtr, ok := tcpBufferPool.Get().(*[]byte)
+		if !ok {
+			errChan <- fmt.Errorf("buffer pool returned unexpected type")
+			return
+		}
 		defer tcpBufferPool.Put(bufPtr)
 
 		_, err := io.CopyBuffer(conn1, conn2, *bufPtr)

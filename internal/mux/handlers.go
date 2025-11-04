@@ -147,7 +147,11 @@ func forwardRawStream(ctx context.Context, stream *quicgo.Stream, targetAddr str
 
 	// Stream -> Target
 	go func() {
-		bufPtr := rawBufferPool.Get().(*[]byte)
+		bufPtr, ok := rawBufferPool.Get().(*[]byte)
+		if !ok {
+			errChan <- fmt.Errorf("buffer pool returned unexpected type")
+			return
+		}
 		defer rawBufferPool.Put(bufPtr)
 
 		_, err := io.CopyBuffer(conn, stream, *bufPtr)
@@ -160,7 +164,11 @@ func forwardRawStream(ctx context.Context, stream *quicgo.Stream, targetAddr str
 
 	// Target -> Stream
 	go func() {
-		bufPtr := rawBufferPool.Get().(*[]byte)
+		bufPtr, ok := rawBufferPool.Get().(*[]byte)
+		if !ok {
+			errChan <- fmt.Errorf("buffer pool returned unexpected type")
+			return
+		}
 		defer rawBufferPool.Put(bufPtr)
 
 		_, err := io.CopyBuffer(stream, conn, *bufPtr)
