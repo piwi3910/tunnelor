@@ -248,12 +248,15 @@ graph TB
 
 ### Stream Header Format
 
-```
-┌─────────┬──────────┬────────┬─────────┬──────────────┐
-│ Version │ Protocol │ Flags  │ MetaLen │   Metadata   │
-│  1 byte │  1 byte  │ 1 byte │ 1 byte  │  0-255 bytes │
-└─────────┴──────────┴────────┴─────────┴──────────────┘
-```
+| Field | Size | Description |
+|-------|------|-------------|
+| **Version** | 1 byte | Protocol version (currently `0x01`) |
+| **Protocol** | 1 byte | Protocol ID (0x01=TCP, 0x02=UDP, 0x03=Control, 0x04=Raw) |
+| **Flags** | 1 byte | Reserved flags for future use |
+| **MetaLen** | 1 byte | Length of metadata section (0-255 bytes) |
+| **Metadata** | 0-255 bytes | Variable-length metadata (protocol-specific) |
+
+**Total Header Size**: 4 bytes (fixed) + 0-255 bytes (metadata) = 4-259 bytes
 
 **Protocol IDs**:
 - `0x01` - TCP
