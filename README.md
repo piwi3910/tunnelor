@@ -294,16 +294,32 @@ openssl rand -base64 32
 
 Tunnelor uses a modern, layered architecture built on QUIC:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│           Application Layer (TCP/UDP Traffic)           │
-├─────────────────────────────────────────────────────────┤
-│      Tunnelor Layer (Stream Headers, Multiplexing)     │
-├─────────────────────────────────────────────────────────┤
-│         QUIC Layer (TLS 1.3, Stream Management)         │
-├─────────────────────────────────────────────────────────┤
-│              UDP Transport (Network Layer)              │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "Application Layer"
+        AppData[TCP/UDP Traffic<br/>Application Data]
+    end
+
+    subgraph "Tunnelor Layer"
+        StreamHeaders[Stream Headers & Multiplexing<br/>Protocol Routing]
+    end
+
+    subgraph "QUIC Layer"
+        QUICCore[TLS 1.3 Encryption<br/>Stream Management<br/>Flow Control]
+    end
+
+    subgraph "Network Layer"
+        UDPTransport[UDP Transport<br/>Datagrams]
+    end
+
+    AppData --> StreamHeaders
+    StreamHeaders --> QUICCore
+    QUICCore --> UDPTransport
+
+    style AppData fill:#e3f2fd
+    style StreamHeaders fill:#fff9c4
+    style QUICCore fill:#f3e5f5
+    style UDPTransport fill:#e8f5e9
 ```
 
 ### Key Components
