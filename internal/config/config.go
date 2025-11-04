@@ -12,15 +12,24 @@ import (
 	"github.com/spf13/viper"
 )
 
+// ServerForwardConfig defines a reverse tunnel forward rule on the server
+type ServerForwardConfig struct {
+	Local    string `mapstructure:"local"`     // Public address to listen on (e.g., "0.0.0.0:8080")
+	Remote   string `mapstructure:"remote"`    // Address the client should connect to (e.g., "localhost:3000")
+	Proto    string `mapstructure:"proto"`     // Protocol: "tcp" or "udp"
+	ClientID string `mapstructure:"client_id"` // Which client should handle this forward
+}
+
 // ServerConfig holds server-specific configuration
 type ServerConfig struct {
-	Auth                    ServerAuthConfig `mapstructure:"auth"`
-	Listen                  string           `mapstructure:"listen"`
-	TLSCert                 string           `mapstructure:"tls_cert"`
-	TLSKey                  string           `mapstructure:"tls_key"`
-	MetricsPort             int              `mapstructure:"metrics_port"`
-	MaxConnectionsPerClient int              `mapstructure:"max_connections_per_client"` // Max connections per client ID (0 = unlimited)
-	MaxTotalConnections     int              `mapstructure:"max_total_connections"`      // Max total connections (0 = unlimited)
+	Auth                    ServerAuthConfig      `mapstructure:"auth"`
+	Listen                  string                `mapstructure:"listen"`
+	TLSCert                 string                `mapstructure:"tls_cert"`
+	TLSKey                  string                `mapstructure:"tls_key"`
+	Forwards                []ServerForwardConfig `mapstructure:"forwards"`
+	MetricsPort             int                   `mapstructure:"metrics_port"`
+	MaxConnectionsPerClient int                   `mapstructure:"max_connections_per_client"`
+	MaxTotalConnections     int                   `mapstructure:"max_total_connections"`
 }
 
 // ServerAuthConfig holds server authentication configuration
@@ -154,7 +163,8 @@ func validateServerConfig(cfg *ServerConfig) error {
 		return fmt.Errorf("server.max_total_connections must be >= 0, got %d", cfg.MaxTotalConnections)
 	}
 
-	return nil
+	// Validate forwards (reverse tunnels)
+	return validateServerForwards(cfg.Forwards)
 }
 
 // validateClientConfig validates the client configuration
@@ -221,6 +231,43 @@ func validateForward(index int, fwd ForwardConfig) error {
 
 	if fwd.Proto != "tcp" && fwd.Proto != "udp" {
 		return fmt.Errorf("forward[%d].proto must be 'tcp' or 'udp', got '%s'", index, fwd.Proto)
+	}
+
+	return nil
+}
+
+// validateServerForwards validates all server forward configurations
+func validateServerForwards(forwards []ServerForwardConfig) error {
+	for i, fwd := range forwards {
+		if err := validateServerForward(i, fwd); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateServerForward validates a single server forward configuration
+func validateServerForward(index int, fwd ServerForwardConfig) error {
+	if fwd.Local == "" {
+		return fmt.Errorf("server.forwards[%d].local is required", index)
+	}
+	if err := validateAddress(fwd.Local); err != nil {
+		return fmt.Errorf("server.forwards[%d].local invalid: %w", index, err)
+	}
+
+	if fwd.Remote == "" {
+		return fmt.Errorf("server.forwards[%d].remote is required", index)
+	}
+	if err := validateAddress(fwd.Remote); err != nil {
+		return fmt.Errorf("server.forwards[%d].remote invalid: %w", index, err)
+	}
+
+	if fwd.Proto != "tcp" && fwd.Proto != "udp" {
+		return fmt.Errorf("server.forwards[%d].proto must be 'tcp' or 'udp', got '%s'", index, fwd.Proto)
+	}
+
+	if fwd.ClientID == "" {
+		return fmt.Errorf("server.forwards[%d].client_id is required", index)
 	}
 
 	return nil

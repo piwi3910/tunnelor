@@ -101,6 +101,33 @@ func (m *Multiplexer) OpenStream(protocol ProtocolID, metadata []byte) (*Stream,
 	return muxStream, nil
 }
 
+// OpenTCPStream opens a new TCP stream with the given target address
+func (m *Multiplexer) OpenTCPStream(targetAddr, sourceAddr string) (*quicgo.Stream, error) {
+	// Encode TCP metadata
+	meta := TCPMetadata{
+		SourceAddr: sourceAddr,
+		TargetAddr: targetAddr,
+	}
+	metaBytes, err := EncodeTCPMetadata(meta)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode TCP metadata: %w", err)
+	}
+
+	// Open stream
+	muxStream, err := m.OpenStream(ProtocolTCP, metaBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open TCP stream: %w", err)
+	}
+
+	log.Debug().
+		Str("target", targetAddr).
+		Str("source", sourceAddr).
+		Uint64("stream_id", muxStream.StreamID).
+		Msg("Opened TCP stream")
+
+	return muxStream.Stream, nil
+}
+
 // AcceptStream accepts an incoming multiplexed stream
 func (m *Multiplexer) AcceptStream() (*Stream, error) {
 	// Accept QUIC stream
