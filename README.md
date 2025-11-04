@@ -400,6 +400,7 @@ Comprehensive documentation is available in the `docs/` directory:
 |----------|-------------|
 | **[Tunnel Types](docs/tunnel-types.md)** | ⭐ **START HERE** - Explains forward vs reverse tunnels, what Tunnelor currently supports, and future plans |
 | **[Architecture](docs/architecture.md)** | System architecture with 21+ Mermaid diagrams covering component design, data flows, authentication, TCP/UDP forwarding, security model, and deployment strategies |
+| **[Control Plane](docs/control-plane.md)** | Protocol specification for dynamic forward management, including message types, authentication flow, and runtime configuration |
 | **[Test Documentation](docs/test-documentation.md)** | Complete guide to all unit and integration tests, including test execution, coverage reporting, and best practices |
 
 ### Documentation Highlights

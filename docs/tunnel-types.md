@@ -329,11 +329,18 @@ Completed in [Issue #9](https://github.com/piwi3910/tunnelor/issues/9), [#10](ht
 - [x] Per-client configuration on server side
 - [x] Documentation updates
 
-### ⏳ Future Enhancements
+### ✅ Control Plane Extensions (Issue #13)
 
-**Optional Control Plane Extensions** ([#13](https://github.com/piwi3910/tunnelor/issues/13)):
-- [ ] Dynamic forward add/remove via control messages
-- [ ] Runtime forward management without restart
+**Protocol Complete** - See [Control Plane Documentation](control-plane.md):
+- [x] Dynamic forward add/remove via control messages
+- [x] Protocol message definitions (FORWARD_ADD, FORWARD_REMOVE, FORWARD_LIST, etc.)
+- [x] Server-side command handlers
+- [x] Client-side command methods
+- [x] Comprehensive unit tests
+- [ ] Integration with ForwardRegistry (pending)
+- [ ] CLI commands for runtime management (pending)
+
+### ⏳ Future Enhancements
 
 **Advanced Features:**
 - [ ] Dynamic port allocation
