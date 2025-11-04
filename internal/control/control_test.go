@@ -600,3 +600,259 @@ func TestServerHandlerMultipleSessions(t *testing.T) {
 		assert.Fail(t, "session-3 should still exist")
 	}
 }
+
+// Test forward management messages
+
+func TestForwardAddMessage(t *testing.T) {
+	addMsg := ForwardAddMessage{
+		Local:    "127.0.0.1:8080",
+		Remote:   "10.0.0.5:9000",
+		Proto:    "tcp",
+		ClientID: testClientID,
+		Type:     "forward",
+	}
+
+	msg, err := NewMessage(MessageTypeForwardAdd, addMsg)
+	require.NoError(t, err, "NewMessage() should not return error")
+	assert.Equal(t, MessageTypeForwardAdd, msg.Type, "Message type should be FORWARD_ADD")
+
+	// Parse back
+	var parsed ForwardAddMessage
+	err = msg.ParseData(&parsed)
+	require.NoError(t, err, "ParseData() should not return error")
+	assert.Equal(t, addMsg.Local, parsed.Local, "Local address should match")
+	assert.Equal(t, addMsg.Remote, parsed.Remote, "Remote address should match")
+	assert.Equal(t, addMsg.Proto, parsed.Proto, "Protocol should match")
+	assert.Equal(t, addMsg.ClientID, parsed.ClientID, "Client ID should match")
+	assert.Equal(t, addMsg.Type, parsed.Type, "Type should match")
+}
+
+func TestForwardRemoveMessage(t *testing.T) {
+	removeMsg := ForwardRemoveMessage{
+		ForwardID: "fwd-123",
+	}
+
+	msg, err := NewMessage(MessageTypeForwardRemove, removeMsg)
+	require.NoError(t, err, "NewMessage() should not return error")
+	assert.Equal(t, MessageTypeForwardRemove, msg.Type, "Message type should be FORWARD_REMOVE")
+
+	// Parse back
+	var parsed ForwardRemoveMessage
+	err = msg.ParseData(&parsed)
+	require.NoError(t, err, "ParseData() should not return error")
+	assert.Equal(t, removeMsg.ForwardID, parsed.ForwardID, "Forward ID should match")
+}
+
+func TestForwardListMessage(t *testing.T) {
+	listMsg := ForwardListMessage{
+		Type: "forward",
+	}
+
+	msg, err := NewMessage(MessageTypeForwardList, listMsg)
+	require.NoError(t, err, "NewMessage() should not return error")
+	assert.Equal(t, MessageTypeForwardList, msg.Type, "Message type should be FORWARD_LIST")
+
+	// Parse back
+	var parsed ForwardListMessage
+	err = msg.ParseData(&parsed)
+	require.NoError(t, err, "ParseData() should not return error")
+	assert.Equal(t, listMsg.Type, parsed.Type, "Filter type should match")
+}
+
+func TestForwardOKMessage(t *testing.T) {
+	okMsg := ForwardOKMessage{
+		ForwardID: "fwd-123",
+		Message:   "Forward added successfully",
+		Forwards:  nil,
+	}
+
+	msg, err := NewMessage(MessageTypeForwardOK, okMsg)
+	require.NoError(t, err, "NewMessage() should not return error")
+	assert.Equal(t, MessageTypeForwardOK, msg.Type, "Message type should be FORWARD_OK")
+
+	// Parse back
+	var parsed ForwardOKMessage
+	err = msg.ParseData(&parsed)
+	require.NoError(t, err, "ParseData() should not return error")
+	assert.Equal(t, okMsg.ForwardID, parsed.ForwardID, "Forward ID should match")
+	assert.Equal(t, okMsg.Message, parsed.Message, "Message should match")
+}
+
+func TestForwardOKMessageWithList(t *testing.T) {
+	forwards := []*ForwardInfo{
+		{
+			ID:       "fwd-1",
+			Local:    "127.0.0.1:8080",
+			Remote:   "10.0.0.5:9000",
+			Proto:    "tcp",
+			ClientID: testClientID,
+			Type:     "forward",
+			Active:   true,
+		},
+		{
+			ID:       "fwd-2",
+			Local:    "127.0.0.1:5432",
+			Remote:   "db.internal:5432",
+			Proto:    "tcp",
+			ClientID: testClientID,
+			Type:     "forward",
+			Active:   false,
+		},
+	}
+
+	okMsg := ForwardOKMessage{
+		Forwards: forwards,
+		Message:  "Found 2 forwards",
+	}
+
+	msg, err := NewMessage(MessageTypeForwardOK, okMsg)
+	require.NoError(t, err, "NewMessage() should not return error")
+
+	// Parse back
+	var parsed ForwardOKMessage
+	err = msg.ParseData(&parsed)
+	require.NoError(t, err, "ParseData() should not return error")
+	assert.Len(t, parsed.Forwards, 2, "Should have 2 forwards")
+	assert.Equal(t, forwards[0].ID, parsed.Forwards[0].ID, "First forward ID should match")
+	assert.Equal(t, forwards[1].ID, parsed.Forwards[1].ID, "Second forward ID should match")
+}
+
+func TestForwardFailMessage(t *testing.T) {
+	failMsg := ForwardFailMessage{
+		Reason: "Invalid forward configuration",
+	}
+
+	msg, err := NewMessage(MessageTypeForwardFail, failMsg)
+	require.NoError(t, err, "NewMessage() should not return error")
+	assert.Equal(t, MessageTypeForwardFail, msg.Type, "Message type should be FORWARD_FAIL")
+
+	// Parse back
+	var parsed ForwardFailMessage
+	err = msg.ParseData(&parsed)
+	require.NoError(t, err, "ParseData() should not return error")
+	assert.Equal(t, failMsg.Reason, parsed.Reason, "Reason should match")
+}
+
+// Test forward management message serialization
+func TestForwardMessagesRoundTrip(t *testing.T) {
+	tests := []struct {
+		data    interface{}
+		msgType MessageType
+		name    string
+	}{
+		{
+			name:    "FORWARD_ADD",
+			msgType: MessageTypeForwardAdd,
+			data: ForwardAddMessage{
+				Local:    "127.0.0.1:8080",
+				Remote:   "10.0.0.5:9000",
+				Proto:    "tcp",
+				ClientID: testClientID,
+				Type:     "forward",
+			},
+		},
+		{
+			name:    "FORWARD_REMOVE",
+			msgType: MessageTypeForwardRemove,
+			data: ForwardRemoveMessage{
+				ForwardID: "fwd-123",
+			},
+		},
+		{
+			name:    "FORWARD_LIST",
+			msgType: MessageTypeForwardList,
+			data: ForwardListMessage{
+				Type: "forward",
+			},
+		},
+		{
+			name:    "FORWARD_OK",
+			msgType: MessageTypeForwardOK,
+			data: ForwardOKMessage{
+				ForwardID: "fwd-123",
+				Message:   "Success",
+			},
+		},
+		{
+			name:    "FORWARD_FAIL",
+			msgType: MessageTypeForwardFail,
+			data: ForwardFailMessage{
+				Reason: "Error",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create message
+			msg, err := NewMessage(tt.msgType, tt.data)
+			require.NoError(t, err, "NewMessage() should not return error")
+
+			// Marshal to JSON
+			jsonData, err := msg.Marshal()
+			require.NoError(t, err, "Marshal() should not return error")
+
+			// Unmarshal from JSON
+			parsed, err := UnmarshalMessage(jsonData)
+			require.NoError(t, err, "UnmarshalMessage() should not return error")
+			assert.Equal(t, tt.msgType, parsed.Type, "Message type should match after round trip")
+		})
+	}
+}
+
+// Test buffered forward message exchange
+func TestForwardMessageExchange(t *testing.T) {
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+	reader := bufio.NewReader(&buf)
+
+	// Client sends FORWARD_ADD
+	addMsg := ForwardAddMessage{
+		Local:    "127.0.0.1:8080",
+		Remote:   "10.0.0.5:9000",
+		Proto:    "tcp",
+		ClientID: testClientID,
+		Type:     "forward",
+	}
+	addMessage, err := NewMessage(MessageTypeForwardAdd, addMsg)
+	require.NoError(t, err, "NewMessage() should not return error")
+
+	err = WriteMessageBuffered(writer, addMessage)
+	require.NoError(t, err, "WriteMessageBuffered() should not return error")
+	err = writer.Flush()
+	require.NoError(t, err, "Flush() should not return error")
+
+	// Server reads FORWARD_ADD
+	receivedAdd, err := ReadMessageBuffered(reader)
+	require.NoError(t, err, "ReadMessageBuffered() should not return error")
+	assert.Equal(t, MessageTypeForwardAdd, receivedAdd.Type, "Should receive FORWARD_ADD")
+
+	var parsedAdd ForwardAddMessage
+	err = receivedAdd.ParseData(&parsedAdd)
+	require.NoError(t, err, "ParseData() should not return error")
+	assert.Equal(t, addMsg.Local, parsedAdd.Local, "Local address should match")
+
+	// Server sends FORWARD_OK
+	okMsg := ForwardOKMessage{
+		ForwardID: "fwd-new-123",
+		Message:   "Forward added successfully",
+	}
+	okMessage, err := NewMessage(MessageTypeForwardOK, okMsg)
+	require.NoError(t, err, "NewMessage() should not return error")
+
+	err = WriteMessageBuffered(writer, okMessage)
+	require.NoError(t, err, "WriteMessageBuffered() should not return error")
+	err = writer.Flush()
+	require.NoError(t, err, "Flush() should not return error")
+
+	// Client reads FORWARD_OK
+	receivedOK, err := ReadMessageBuffered(reader)
+	require.NoError(t, err, "ReadMessageBuffered() should not return error")
+	assert.Equal(t, MessageTypeForwardOK, receivedOK.Type, "Should receive FORWARD_OK")
+
+	var parsedOK ForwardOKMessage
+	err = receivedOK.ParseData(&parsedOK)
+	require.NoError(t, err, "ParseData() should not return error")
+	assert.Equal(t, okMsg.ForwardID, parsedOK.ForwardID, "Forward ID should match")
+	assert.Equal(t, okMsg.Message, parsedOK.Message, "Message should match")
+}
