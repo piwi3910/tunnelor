@@ -158,7 +158,10 @@ func (s *Server) Stop() error {
 	}
 
 	log.Info().Msg("Stopping metrics server")
-	return s.httpServer.Close()
+	if err := s.httpServer.Close(); err != nil {
+		return fmt.Errorf("failed to close metrics server: %w", err)
+	}
+	return nil
 }
 
 // RecordConnectionStart records a new connection start

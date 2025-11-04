@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -340,25 +341,27 @@ func (suite *TunnelorIntegrationSuite) sendUDPDatagramOverQUIC(stream *quicgo.St
 	length := uint16(len(data))
 	lengthBytes := []byte{byte(length >> 8), byte(length & 0xFF)}
 	if _, err := stream.Write(lengthBytes); err != nil {
-		return err
+		return fmt.Errorf("failed to write length prefix: %w", err)
 	}
 	// Write data
-	_, err := stream.Write(data)
-	return err
+	if _, err := stream.Write(data); err != nil {
+		return fmt.Errorf("failed to write data: %w", err)
+	}
+	return nil
 }
 
 func (suite *TunnelorIntegrationSuite) receiveUDPDatagramFromQUIC(stream *quicgo.Stream) ([]byte, error) {
 	// Read length prefix
 	lengthBytes := make([]byte, 2)
 	if _, err := io.ReadFull(stream, lengthBytes); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read length prefix: %w", err)
 	}
 	length := uint16(lengthBytes[0])<<8 | uint16(lengthBytes[1])
 
 	// Read data
 	data := make([]byte, length)
 	if _, err := io.ReadFull(stream, data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read data: %w", err)
 	}
 	return data, nil
 }
@@ -368,11 +371,11 @@ func (suite *TunnelorIntegrationSuite) handleUDPToQUIC(stream *quicgo.Stream, ta
 	// Create UDP connection to target
 	udpAddr, err := net.ResolveUDPAddr("udp", targetAddr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to resolve UDP address: %w", err)
 	}
 	udpConn, err := net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to dial UDP: %w", err)
 	}
 	defer udpConn.Close()
 
@@ -389,14 +392,14 @@ func (suite *TunnelorIntegrationSuite) handleUDPToQUIC(stream *quicgo.Stream, ta
 
 		// Forward to UDP
 		if _, err := udpConn.Write(data); err != nil {
-			return err
+			return fmt.Errorf("failed to write to UDP: %w", err)
 		}
 
 		// Read UDP response
 		buf := make([]byte, 65535)
 		n, err := udpConn.Read(buf)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read from UDP: %w", err)
 		}
 
 		// Send response back over QUIC
