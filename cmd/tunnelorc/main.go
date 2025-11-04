@@ -413,8 +413,17 @@ func runConnect(_ *cobra.Command, _ []string) error {
 		}
 	}()
 
-	// Register default handlers (for responses from server)
+	// Register default handlers (for responses from server AND reverse tunnel streams)
 	mux.RegisterDefaultHandlers(multiplexer)
+
+	// Start serving incoming streams from server (for reverse tunnels)
+	// This allows the server to initiate streams to the client
+	go func() {
+		log.Info().Msg("Starting stream server for reverse tunnels")
+		if err := multiplexer.ServeStreams(); err != nil {
+			log.Error().Err(err).Msg("Stream server error")
+		}
+	}()
 
 	// Create client state for dynamic forwarding
 	state := &clientState{
