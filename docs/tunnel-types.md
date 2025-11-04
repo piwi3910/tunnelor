@@ -119,9 +119,9 @@ Solution:
 
 ---
 
-## Future Implementation: Reverse Tunnels ⏳
+## Reverse Tunnels ✅
 
-**Status**: Planned - See [Issue #9](https://github.com/piwi3910/tunnelor/issues/9)
+**Status**: Fully implemented - See [Issue #9](https://github.com/piwi3910/tunnelor/issues/9), [Issue #10](https://github.com/piwi3910/tunnelor/issues/10), [Issue #11](https://github.com/piwi3910/tunnelor/issues/11)
 
 ### What is a Reverse Tunnel?
 
@@ -139,7 +139,7 @@ External User → Tunnel Server (public) → Client (private) → Local Service
 - Provide temporary access to a service behind NAT/firewall
 - Similar to SSH remote port forwarding: `ssh -R 8080:localhost:80 server`
 
-### How It Will Work
+### How It Works
 
 ```mermaid
 sequenceDiagram
@@ -163,36 +163,42 @@ sequenceDiagram
     Server->>ExtUser: HTTP response
 ```
 
-### Planned Configuration
+### Configuration Example
 
 **Server** (`tunnelord`):
 ```yaml
 server:
-  listen: 0.0.0.0:4433  # QUIC control plane
+  listen: "0.0.0.0:4433"  # QUIC control plane
+  tls_cert: "/etc/tunnelor/server.crt"
+  tls_key: "/etc/tunnelor/server.key"
 
   forwards:
     # External users connect to public-server.com:8080
     # Traffic forwarded to client "dev-laptop"
     # Client forwards to localhost:3000
-    - public: 0.0.0.0:8080
+    - local: "0.0.0.0:8080"       # Server listens here (public)
+      remote: "localhost:3000"    # Client connects here (local to client)
+      proto: "tcp"
       client_id: "dev-laptop"
-      target: "localhost:3000"
-      proto: tcp
 
-    - public: 0.0.0.0:5432
+    - local: "0.0.0.0:5432"
+      remote: "localhost:5432"
+      proto: "tcp"
       client_id: "dev-laptop"
-      target: "192.168.1.100:5432"
-      proto: tcp
+
+auth:
+  psk_map:
+    "dev-laptop": "base64encodedkey=="
 ```
 
 **Client** (`tunnelorc`):
 ```yaml
 client:
-  server: tunnel-server.example.com:4433
-  client_id: dev-laptop
-  psk: base64encodedkey==
+  server: "quic://tunnel-server.example.com:4433"
+  client_id: "dev-laptop"
+  psk: "base64encodedkey=="
 
-  # No forward configuration needed
+  # No forward configuration needed for reverse tunnels
   # Server controls what gets exposed
 ```
 
@@ -209,7 +215,7 @@ curl http://public-server.com:8080
 # Traffic flows: public:8080 → tunnel → localhost:3000
 ```
 
-### Planned Use Cases
+### Use Cases
 
 #### Example 1: Share Development Server
 ```
@@ -237,8 +243,8 @@ Solution:
 
 ## Comparison Table
 
-| Feature | Forward Tunnel (✅ Current) | Reverse Tunnel (⏳ Planned) |
-|---------|---------------------------|---------------------------|
+| Feature | Forward Tunnel ✅ | Reverse Tunnel ✅ |
+|---------|------------------|------------------|
 | **Who listens locally?** | Client | Server |
 | **Who connects to target?** | Server | Client |
 | **Configuration location** | Client defines forwards | Server defines forwards |
@@ -248,27 +254,45 @@ Solution:
 | **Client behind NAT/firewall?** | OK | OK |
 | **Server behind NAT/firewall?** | Must be reachable | Must be reachable |
 
-## Hybrid Mode (Future)
+## Hybrid Mode ✅
 
-Eventually, Tunnelor will support **both** forward and reverse tunnels simultaneously:
+Tunnelor now supports **both** forward and reverse tunnels simultaneously!
 
+**Client Configuration:**
 ```yaml
 client:
-  server: tunnel-server.example.com:4433
+  server: "quic://tunnel-server.example.com:4433"
+  client_id: "my-laptop"
+  psk: "base64encodedkey=="
 
   # Forward tunnels (client → server → remote)
-  forward_tunnels:
-    - local: 127.0.0.1:5432
-      remote: db.internal:5432
-      proto: tcp
+  forwards:
+    - local: "127.0.0.1:5432"     # Client listens here
+      remote: "db.internal:5432"  # Server connects here
+      proto: "tcp"
 
-  # Reverse tunnels (handled by server config)
-  # Server exposes client's local services
+  # Reverse tunnels are configured on the server
+  # (server will start public listeners for this client_id)
 ```
 
-This would allow a single client to both:
-- Access remote resources through the tunnel (forward)
-- Expose local services publicly (reverse)
+**Server Configuration:**
+```yaml
+server:
+  forwards:
+    # Reverse tunnel: expose client's localhost:3000 publicly
+    - local: "0.0.0.0:8080"      # Server listens here (public)
+      remote: "localhost:3000"   # Client connects here
+      proto: "tcp"
+      client_id: "my-laptop"
+
+auth:
+  psk_map:
+    "my-laptop": "base64encodedkey=="
+```
+
+This allows a single client to simultaneously:
+- ✅ Access remote resources through the tunnel (forward)
+- ✅ Expose local services publicly (reverse)
 
 ---
 
@@ -285,29 +309,38 @@ This would allow a single client to both:
 - [x] Configuration and CLI
 - [x] Comprehensive testing
 
-### ⏳ Planned (Reverse Tunnels)
+### ✅ Implemented (Reverse Tunnels)
 
-Track progress in [Issue #9](https://github.com/piwi3910/tunnelor/issues/9)
+Completed in [Issue #9](https://github.com/piwi3910/tunnelor/issues/9), [#10](https://github.com/piwi3910/tunnelor/issues/10), [#11](https://github.com/piwi3910/tunnelor/issues/11)
 
-**Phase 1: Core Reverse Tunnel**
-- [ ] Server-side public port listeners ([#10](https://github.com/piwi3910/tunnelor/issues/10))
-- [ ] QUIC stream opening from server to client
-- [ ] Client-side stream handling ([#11](https://github.com/piwi3910/tunnelor/issues/11))
-- [ ] Client-side target connection
-- [ ] Control plane extensions ([#13](https://github.com/piwi3910/tunnelor/issues/13))
-- [ ] Configuration updates
-- [ ] Integration tests
+**Core Functionality:**
+- [x] Server-side public port listeners
+- [x] QUIC stream opening from server to client
+- [x] Client-side stream handling
+- [x] Client-side target connection
+- [x] Configuration structures with validation
+- [x] Example configurations
+- [x] Bidirectional data forwarding
+- [x] TCP protocol support (UDP marked for future)
 
-**Phase 2: Hybrid Mode**
-- [ ] Support both modes simultaneously
-- [ ] Tunnel type configuration flag
-- [ ] Updated documentation
+### ✅ Implemented (Hybrid Mode)
 
-**Phase 3: Advanced Features**
+- [x] Support both forward and reverse tunnels simultaneously
+- [x] Per-client configuration on server side
+- [x] Documentation updates
+
+### ⏳ Future Enhancements
+
+**Optional Control Plane Extensions** ([#13](https://github.com/piwi3910/tunnelor/issues/13)):
+- [ ] Dynamic forward add/remove via control messages
+- [ ] Runtime forward management without restart
+
+**Advanced Features:**
 - [ ] Dynamic port allocation
-- [ ] Runtime forward management
-- [ ] HTTP(S) virtual hosting
-- [ ] Custom domains
+- [ ] HTTP(S) virtual hosting with SNI
+- [ ] Custom domain mapping
+- [ ] UDP reverse tunnel support
+- [ ] Connection pooling
 
 ---
 
@@ -315,29 +348,40 @@ Track progress in [Issue #9](https://github.com/piwi3910/tunnelor/issues/9)
 
 ### Q: Which mode should I use?
 
-**Use Forward Tunnels (current) when:**
+**Use Forward Tunnels when:**
 - You want to access a service that's only reachable from your server
 - The target is "over there" (on the server's network)
 - Example: Access AWS RDS from your laptop
 
-**Use Reverse Tunnels (future) when:**
+**Use Reverse Tunnels when:**
 - You want to expose a local service publicly
 - The target is "over here" (on your local network)
 - Example: Share your localhost web app with others
 
 ### Q: Can I use both at the same time?
 
-Not yet. This is planned for Phase 2 (Hybrid Mode).
+Yes! Hybrid mode is fully supported. A single client can have:
+- Forward tunnels configured in the client config (client listens locally)
+- Reverse tunnels configured in the server config (server listens publicly)
 
 ### Q: Is this similar to ngrok/localtunnel?
 
 **Forward tunnels**: No, those tools only do reverse tunnels
-**Reverse tunnels** (future): Yes, very similar functionality
+**Reverse tunnels**: Yes, very similar functionality - expose localhost services through a public server
 
 ### Q: Is this similar to SSH port forwarding?
 
 **Forward tunnels**: Yes, like `ssh -L local:remote`
-**Reverse tunnels** (future): Yes, like `ssh -R remote:local`
+**Reverse tunnels**: Yes, like `ssh -R remote:local`
+
+### Q: Which services can I expose with reverse tunnels?
+
+Any TCP service running on the client machine:
+- Web servers (HTTP/HTTPS)
+- Databases (PostgreSQL, MySQL, etc.)
+- SSH servers
+- Custom applications
+- Anything listening on a TCP port
 
 ### Q: Why QUIC instead of traditional TCP tunnels?
 
@@ -352,10 +396,8 @@ QUIC provides:
 
 ## Contributing
 
-Interested in helping implement reverse tunnels? Check out:
-- [Issue #9](https://github.com/piwi3910/tunnelor/issues/9) - Main tracking issue
-- [Issue #10](https://github.com/piwi3910/tunnelor/issues/10) - Server-side listeners
-- [Issue #11](https://github.com/piwi3910/tunnelor/issues/11) - Client-side handling
-- [Issue #13](https://github.com/piwi3910/tunnelor/issues/13) - Control plane
+Interested in helping enhance Tunnelor? Check out:
+- [Issue #13](https://github.com/piwi3910/tunnelor/issues/13) - Control plane extensions (optional)
+- Open issues for UDP reverse tunnels, advanced features, etc.
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for development guidelines.
