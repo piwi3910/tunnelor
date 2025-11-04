@@ -113,17 +113,37 @@ func (m *Multiplexer) OpenTCPStream(targetAddr, sourceAddr string) (*quicgo.Stre
 		return nil, fmt.Errorf("failed to encode TCP metadata: %w", err)
 	}
 
-	// Open stream
-	muxStream, err := m.OpenStream(ProtocolTCP, metaBytes)
+	return m.openProtocolStream(ProtocolTCP, metaBytes, targetAddr, sourceAddr, "TCP")
+}
+
+// OpenUDPStream opens a new UDP stream with the given target address
+func (m *Multiplexer) OpenUDPStream(targetAddr, sourceAddr string) (*quicgo.Stream, error) {
+	// Encode UDP metadata
+	meta := UDPMetadata{
+		SourceAddr: sourceAddr,
+		TargetAddr: targetAddr,
+	}
+	metaBytes, err := EncodeUDPMetadata(meta)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open TCP stream: %w", err)
+		return nil, fmt.Errorf("failed to encode UDP metadata: %w", err)
+	}
+
+	return m.openProtocolStream(ProtocolUDP, metaBytes, targetAddr, sourceAddr, "UDP")
+}
+
+// openProtocolStream is a helper to open streams for different protocols
+func (m *Multiplexer) openProtocolStream(protocol ProtocolID, metadata []byte, targetAddr, sourceAddr, protocolName string) (*quicgo.Stream, error) {
+	// Open stream
+	muxStream, err := m.OpenStream(protocol, metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open %s stream: %w", protocolName, err)
 	}
 
 	log.Debug().
 		Str("target", targetAddr).
 		Str("source", sourceAddr).
 		Uint64("stream_id", muxStream.StreamID).
-		Msg("Opened TCP stream")
+		Msgf("Opened %s stream", protocolName)
 
 	return muxStream.Stream, nil
 }

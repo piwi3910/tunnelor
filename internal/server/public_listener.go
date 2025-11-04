@@ -226,8 +226,7 @@ func (pl *PublicListener) serveUDP() error {
 		Str("local", pl.forwardInfo.Local).
 		Msg("Starting UDP public listener")
 
-	// For UDP, we need to track sessions per source address
-	// This is a simplified implementation - production would need session management
+	// Buffer for reading UDP datagrams (max UDP datagram size)
 	buf := make([]byte, 65535)
 
 	for {
@@ -237,6 +236,7 @@ func (pl *PublicListener) serveUDP() error {
 		default:
 		}
 
+		// Read UDP datagram
 		n, remoteAddr, err := pl.udpConn.ReadFromUDP(buf)
 		if err != nil {
 			select {
@@ -253,16 +253,61 @@ func (pl *PublicListener) serveUDP() error {
 
 		log.Debug().
 			Str("forward_id", pl.forwardInfo.ID).
-			Str("remote_addr", remoteAddr.String()).
+			Str("source_addr", remoteAddr.String()).
 			Int("bytes", n).
 			Msg("Received UDP datagram")
 
-		// For now, log that UDP is received but not fully implemented
-		// Full implementation would require session tracking and UDP stream handling
-		log.Warn().
-			Str("forward_id", pl.forwardInfo.ID).
-			Msg("UDP reverse tunnel not yet fully implemented")
+		// Handle datagram in goroutine to avoid blocking
+		datagram := make([]byte, n)
+		copy(datagram, buf[:n])
+		sourceAddr := remoteAddr.String()
+
+		pl.wg.Add(1)
+		go func() {
+			defer pl.wg.Done()
+			if err := pl.handleUDPDatagram(datagram, sourceAddr); err != nil {
+				log.Error().
+					Err(err).
+					Str("forward_id", pl.forwardInfo.ID).
+					Str("source_addr", sourceAddr).
+					Msg("Failed to handle UDP datagram")
+			}
+		}()
 	}
+}
+
+// handleUDPDatagram handles a single UDP datagram by forwarding it through QUIC
+func (pl *PublicListener) handleUDPDatagram(datagram []byte, sourceAddr string) error {
+	// Open QUIC stream to client with UDP metadata
+	stream, err := pl.multiplexer.OpenUDPStream(pl.forwardInfo.Remote, sourceAddr)
+	if err != nil {
+		return fmt.Errorf("failed to open UDP stream: %w", err)
+	}
+	defer func() {
+		if closeErr := stream.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close UDP stream")
+		}
+	}()
+
+	log.Debug().
+		Str("forward_id", pl.forwardInfo.ID).
+		Str("source_addr", sourceAddr).
+		Str("target_addr", pl.forwardInfo.Remote).
+		Int("datagram_size", len(datagram)).
+		Msg("Forwarding UDP datagram through QUIC")
+
+	// Write datagram to stream
+	if _, err := stream.Write(datagram); err != nil {
+		return fmt.Errorf("failed to write datagram to stream: %w", err)
+	}
+
+	log.Debug().
+		Str("forward_id", pl.forwardInfo.ID).
+		Str("source_addr", sourceAddr).
+		Int("bytes", len(datagram)).
+		Msg("UDP datagram forwarded successfully")
+
+	return nil
 }
 
 // Close stops the public listener
