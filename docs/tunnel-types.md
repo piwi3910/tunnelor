@@ -321,7 +321,8 @@ Completed in [Issue #9](https://github.com/piwi3910/tunnelor/issues/9), [#10](ht
 - [x] Configuration structures with validation
 - [x] Example configurations
 - [x] Bidirectional data forwarding
-- [x] TCP protocol support (UDP marked for future)
+- [x] TCP protocol support
+- [x] UDP protocol support
 
 ### ✅ Implemented (Hybrid Mode)
 
@@ -342,11 +343,16 @@ Completed in [Issue #9](https://github.com/piwi3910/tunnelor/issues/9), [#10](ht
 
 ### ⏳ Future Enhancements
 
+**UDP Support** (Completed):
+- [x] UDP reverse tunnel support (fully implemented)
+- [x] UDP forward tunnel support (already existed)
+- [x] Datagram-based forwarding through QUIC streams
+- [x] Source address tracking for routing
+
 **Advanced Features:**
 - [ ] Dynamic port allocation
 - [ ] HTTP(S) virtual hosting with SNI
 - [ ] Custom domain mapping
-- [ ] UDP reverse tunnel support
 - [ ] Connection pooling
 
 ---
