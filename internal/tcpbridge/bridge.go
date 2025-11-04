@@ -25,6 +25,30 @@ var tcpBufferPool = sync.Pool{
 	},
 }
 
+// copyWithBuffer copies data from src to dst using a pooled buffer and handles close
+func copyWithBuffer(dst, src io.ReadWriteCloser, direction string, errChan chan<- error, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	// Get buffer from pool
+	bufPtr, ok := tcpBufferPool.Get().(*[]byte)
+	if !ok {
+		errChan <- fmt.Errorf("buffer pool returned unexpected type")
+		return
+	}
+	defer tcpBufferPool.Put(bufPtr)
+
+	_, err := io.CopyBuffer(dst, src, *bufPtr)
+	if err != nil && !errors.Is(err, io.EOF) {
+		errChan <- fmt.Errorf("copy %s failed: %w", direction, err)
+	}
+	// Close write side to signal EOF
+	if closer, ok := dst.(interface{ CloseWrite() error }); ok {
+		if err := closer.CloseWrite(); err != nil {
+			errChan <- fmt.Errorf("failed to close %s write side: %w", direction, err)
+		}
+	}
+}
+
 // BidirectionalCopy copies data bidirectionally between two connections
 func BidirectionalCopy(conn1, conn2 io.ReadWriteCloser) error {
 	var wg sync.WaitGroup
@@ -33,52 +57,10 @@ func BidirectionalCopy(conn1, conn2 io.ReadWriteCloser) error {
 	errChan := make(chan error, 2)
 
 	// Copy from conn1 to conn2
-	go func() {
-		defer wg.Done()
-
-		// Get buffer from pool
-		bufPtr, ok := tcpBufferPool.Get().(*[]byte)
-		if !ok {
-			errChan <- fmt.Errorf("buffer pool returned unexpected type")
-			return
-		}
-		defer tcpBufferPool.Put(bufPtr)
-
-		_, err := io.CopyBuffer(conn2, conn1, *bufPtr)
-		if err != nil && !errors.Is(err, io.EOF) {
-			errChan <- fmt.Errorf("copy conn1->conn2 failed: %w", err)
-		}
-		// Close write side to signal EOF
-		if closer, ok := conn2.(interface{ CloseWrite() error }); ok {
-			if err := closer.CloseWrite(); err != nil {
-				errChan <- fmt.Errorf("failed to close conn2 write side: %w", err)
-			}
-		}
-	}()
+	go copyWithBuffer(conn2, conn1, "conn1->conn2", errChan, &wg)
 
 	// Copy from conn2 to conn1
-	go func() {
-		defer wg.Done()
-
-		// Get buffer from pool
-		bufPtr, ok := tcpBufferPool.Get().(*[]byte)
-		if !ok {
-			errChan <- fmt.Errorf("buffer pool returned unexpected type")
-			return
-		}
-		defer tcpBufferPool.Put(bufPtr)
-
-		_, err := io.CopyBuffer(conn1, conn2, *bufPtr)
-		if err != nil && !errors.Is(err, io.EOF) {
-			errChan <- fmt.Errorf("copy conn2->conn1 failed: %w", err)
-		}
-		// Close write side to signal EOF
-		if closer, ok := conn1.(interface{ CloseWrite() error }); ok {
-			if err := closer.CloseWrite(); err != nil {
-				errChan <- fmt.Errorf("failed to close conn1 write side: %w", err)
-			}
-		}
-	}()
+	go copyWithBuffer(conn1, conn2, "conn2->conn1", errChan, &wg)
 
 	// Wait for both copies to complete
 	wg.Wait()
