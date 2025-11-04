@@ -2,6 +2,8 @@
 
 This document provides a comprehensive overview of Tunnelor's architecture, including system design, component interactions, and data flows.
 
+> **Note**: This architecture document describes **forward tunnels** (current implementation). For reverse tunnels (future), see [Issue #9](https://github.com/piwi3910/tunnelor/issues/9) and [docs/tunnel-types.md](tunnel-types.md).
+
 ## Table of Contents
 
 - [System Overview](#system-overview)
@@ -22,7 +24,10 @@ This document provides a comprehensive overview of Tunnelor's architecture, incl
 
 ## System Overview
 
-Tunnelor is a high-performance, secure tunneling platform built on QUIC (Quick UDP Internet Connections) that enables TCP and UDP traffic forwarding over encrypted, multiplexed streams.
+Tunnelor is a high-performance, secure **forward tunneling** platform built on QUIC (Quick UDP Internet Connections). It enables you to access remote services through an encrypted tunnel by connecting to a local port on your machine, with traffic securely forwarded to a remote destination reachable from the server.
+
+**Tunnel Type**: Forward tunnel (similar to SSH `-L` local port forwarding)
+**Data Flow**: You → Client (local port) → Server → Remote Target
 
 ### Key Features
 
@@ -46,13 +51,13 @@ Tunnelor is a high-performance, secure tunneling platform built on QUIC (Quick U
 
 ## High-Level Architecture
 
+**Forward Tunnel Data Flow**: Your Application → tunnelorc (local listener) → QUIC Tunnel → tunnelord → Remote Target
+
 ```mermaid
 graph TB
-    subgraph "Client Side"
-        ClientApp[Client Application]
-        TunnelorC[tunnelorc]
-        LocalTCP[Local TCP Service]
-        LocalUDP[Local UDP Service]
+    subgraph "Your Machine (Client)"
+        ClientApp[Your Application<br/>e.g., curl, browser]
+        TunnelorC[tunnelorc<br/>Local Listeners:<br/>127.0.0.1:8080]
     end
 
     subgraph "QUIC Tunnel"
@@ -61,32 +66,31 @@ graph TB
         DataStreams[Data Streams<br/>TCP/UDP Tunnels]
     end
 
-    subgraph "Server Side"
-        TunnelorD[tunnelord]
-        RemoteTCP[Remote TCP Service]
-        RemoteUDP[Remote UDP Service]
+    subgraph "Server (tunnelord)"
+        TunnelorD[tunnelord<br/>Stream Handler]
+        RemoteTCP[Remote TCP Target<br/>10.0.0.5:9000]
+        RemoteUDP[Remote UDP Target<br/>10.0.0.5:9001]
     end
 
-    ClientApp -->|Connect to| LocalTCP
-    ClientApp -->|Send to| LocalUDP
-    LocalTCP -->|Accepts Connection| TunnelorC
-    LocalUDP -->|Receives Datagram| TunnelorC
+    ClientApp -->|1. Connect to<br/>localhost:8080| TunnelorC
+    TunnelorC -->|2. Opens<br/>QUIC Stream| DataStreams
 
-    TunnelorC -->|Authenticates| ControlStream
-    TunnelorC -->|Opens Streams| DataStreams
-    ControlStream --> QUICConnection
+    TunnelorC -.->|Initial Auth| ControlStream
+    ControlStream -.-> QUICConnection
     DataStreams --> QUICConnection
 
     QUICConnection --> TunnelorD
-    TunnelorD -->|Verifies Auth| ControlStream
-    TunnelorD -->|Handles Streams| DataStreams
+    TunnelorD -.->|Verifies Auth| ControlStream
+    TunnelorD -->|3. Accepts<br/>Stream| DataStreams
 
-    TunnelorD -->|Connects to| RemoteTCP
-    TunnelorD -->|Sends to| RemoteUDP
+    TunnelorD -->|4. Connects to<br/>Remote Target| RemoteTCP
+    TunnelorD -->|4. Connects to<br/>Remote Target| RemoteUDP
 
     style QUICConnection fill:#e1f5ff
     style ControlStream fill:#fff3e0
     style DataStreams fill:#f3e5f5
+    style TunnelorC fill:#c8e6c9
+    style TunnelorD fill:#ffccbc
 ```
 
 ---
@@ -1041,12 +1045,13 @@ sequenceDiagram
 
 ### Planned Improvements
 
-1. **Dynamic Port Forwarding**: Runtime forward management via control plane
-2. **Load Balancing**: Client-side stream distribution across servers
-3. **Connection Pooling**: Reuse QUIC connections across multiple forwards
-4. **Zero-Downtime Reconnect**: Seamless connection recovery
-5. **Metrics Dashboard**: Built-in web UI for monitoring
-6. **Multi-hop Tunneling**: Chain multiple tunnel servers
+1. **Reverse Tunnels** ([Issue #9](https://github.com/piwi3910/tunnelor/issues/9)): Expose local services publicly through the server (ngrok-style functionality) - see [tunnel-types.md](tunnel-types.md) for details
+2. **Dynamic Port Forwarding**: Runtime forward management via control plane
+3. **Load Balancing**: Client-side stream distribution across servers
+4. **Connection Pooling**: Reuse QUIC connections across multiple forwards
+5. **Zero-Downtime Reconnect**: Seamless connection recovery
+6. **Metrics Dashboard**: Built-in web UI for monitoring
+7. **Multi-hop Tunneling**: Chain multiple tunnel servers
 
 ### Proposed Architecture for Multi-Hop
 
@@ -1082,3 +1087,7 @@ Tunnelor's architecture is designed for:
 - **Observability**: Structured logging, Prometheus metrics
 
 The modular design allows for easy extension and maintenance, while the use of modern protocols (QUIC, TLS 1.3) ensures future-proof operation.
+
+> **Current Implementation**: This architecture describes **forward tunnels** (client → server → remote target).
+> For **reverse tunnels** (external → server → client → local service), see [Issue #9](https://github.com/piwi3910/tunnelor/issues/9)
+> and [tunnel-types.md](tunnel-types.md) for planned implementation details.

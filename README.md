@@ -4,7 +4,9 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](docs/test-documentation.md)
 
-**Tunnelor** is a high-performance, secure tunneling and multiplexing platform built on QUIC that enables TCP and UDP traffic forwarding over encrypted, multiplexed streams with minimal latency overhead.
+**Tunnelor** is a high-performance, secure **forward tunneling** platform built on QUIC that enables you to access remote services through an encrypted tunnel. Similar to SSH local port forwarding (`ssh -L`), it allows you to connect to a local port and have traffic securely forwarded to a remote destination.
+
+> **Note**: Tunnelor currently implements **forward tunnels** (outbound from client). For **reverse tunnels** (inbound to client, like ngrok), see [Issue #9](https://github.com/piwi3910/tunnelor/issues/9). Learn more about [tunnel types](docs/tunnel-types.md).
 
 ## 🚀 Features
 
@@ -94,12 +96,15 @@ client:
   insecure_skip_verify: true  # Only for testing with self-signed certs
 
   forwards:
+    # Forward tunnel: YOU connect to local, traffic goes to remote (via server)
+    # local  = where YOU connect (on your machine)
+    # remote = where SERVER connects (must be reachable from server)
     - local: 127.0.0.1:8080
-      remote: 192.168.1.100:8080
+      remote: 192.168.1.100:8080   # Server will connect to this address
       proto: tcp
 
     - local: 127.0.0.1:5432
-      remote: 192.168.1.100:5432
+      remote: 192.168.1.100:5432   # Example: Database reachable from server
       proto: tcp
 
 logging:
@@ -111,17 +116,24 @@ EOF
 ### 5. Run Server and Client
 
 ```bash
-# Terminal 1 - Start server
+# Terminal 1 - Start server (can reach 192.168.1.100)
 ./bin/tunnelord --config server.yaml
 
-# Terminal 2 - Start client
+# Terminal 2 - Start client (on your laptop)
 ./bin/tunnelorc connect --config client.yaml
 
-# Terminal 3 - Test the tunnel
+# Terminal 3 - Access the remote service through the tunnel
 curl http://localhost:8080
+# Your request → localhost:8080 → tunnel → server → 192.168.1.100:8080
 ```
 
-Now any connection to `localhost:8080` on the client will be securely tunneled through QUIC to `192.168.1.100:8080` on the remote network!
+**What just happened?**
+- You connected to `localhost:8080` on your machine
+- Client forwarded your request through the encrypted QUIC tunnel to the server
+- Server connected to `192.168.1.100:8080` (which you couldn't reach directly)
+- Response came back through the tunnel to you
+
+This is a **forward tunnel** - useful when the server can reach services you can't access directly.
 
 ## 📦 Installation
 
@@ -261,15 +273,18 @@ client:
   psk: base64encodedkey==         # Base64-encoded pre-shared key
   insecure_skip_verify: false     # Skip TLS verification (testing only!)
 
-  forwards:                       # List of port forwards
-    - local: 127.0.0.1:8080      # Local listen address
-      remote: 10.0.0.5:8080       # Remote target address
-      proto: tcp                  # Protocol: tcp or udp
+  forwards:                       # Forward tunnels (client → server → target)
+    # Example: Access a remote web service
+    - local: 127.0.0.1:8080       # YOU connect to this (on your machine)
+      remote: 10.0.0.5:8080        # SERVER connects to this (must be reachable from server)
+      proto: tcp                   # Protocol: tcp or udp
 
-    - local: 127.0.0.1:5432
-      remote: db.internal:5432
+    # Example: Access a database only reachable from server
+    - local: 127.0.0.1:5432       # Connect with: psql -h localhost -p 5432
+      remote: db.internal:5432     # Internal database (server can reach it)
       proto: tcp
 
+    # Example: Forward UDP traffic (e.g., VPN)
     - local: 127.0.0.1:1194
       remote: vpn.internal:1194
       proto: udp
@@ -278,6 +293,8 @@ logging:
   level: debug                    # Log level
   format: pretty                  # Log format
 ```
+
+> **Understanding Forward Tunnels**: With forward tunnels, you connect to `local` on your machine, and the server connects to `remote` on your behalf. The `remote` address must be reachable from the server, not from your client. See [docs/tunnel-types.md](docs/tunnel-types.md) for detailed explanation.
 
 ### Generating Pre-Shared Keys
 
@@ -339,7 +356,8 @@ Comprehensive documentation is available in the `docs/` directory:
 
 | Document | Description |
 |----------|-------------|
-| **[Architecture](docs/architecture.md)** | System architecture with 18+ Mermaid diagrams covering component design, data flows, authentication, TCP/UDP forwarding, security model, and deployment strategies |
+| **[Tunnel Types](docs/tunnel-types.md)** | ⭐ **START HERE** - Explains forward vs reverse tunnels, what Tunnelor currently supports, and future plans |
+| **[Architecture](docs/architecture.md)** | System architecture with 21+ Mermaid diagrams covering component design, data flows, authentication, TCP/UDP forwarding, security model, and deployment strategies |
 | **[Test Documentation](docs/test-documentation.md)** | Complete guide to all unit and integration tests, including test execution, coverage reporting, and best practices |
 
 ### Documentation Highlights
