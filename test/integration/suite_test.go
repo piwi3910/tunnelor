@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package integration
@@ -32,34 +33,22 @@ import (
 // TunnelorIntegrationSuite is the test suite for Tunnelor integration tests
 type TunnelorIntegrationSuite struct {
 	suite.Suite
-
-	// TLS certificates
-	certFile string
-	keyFile  string
-
-	// QUIC components
-	server     *quic.Server
-	client     *quic.Client
-	serverConn *quic.Connection
-
-	// Auth components
-	clientID       string
-	psk            string
-	pskEncoded     string
-	pskMap         map[string]string
-	clientHandler  *control.ClientHandler
-	serverHandler  *control.ServerHandler
-
-	// Multiplexers
-	clientMux *mux.Multiplexer
-	serverMux *mux.Multiplexer
-
-	// Echo servers for forwarding tests
+	ctx             context.Context
 	tcpEchoListener net.Listener
+	clientMux       *mux.Multiplexer
+	serverMux       *mux.Multiplexer
+	serverConn      *quic.Connection
 	udpEchoConn     *net.UDPConn
-
-	// Test context
-	ctx context.Context
+	client          *quic.Client
+	server          *quic.Server
+	pskMap          map[string]string
+	clientHandler   *control.ClientHandler
+	serverHandler   *control.ServerHandler
+	pskEncoded      string
+	psk             string
+	keyFile         string
+	clientID        string
+	certFile        string
 }
 
 // SetupSuite runs once before all tests

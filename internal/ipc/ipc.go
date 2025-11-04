@@ -23,9 +23,9 @@ type ForwardRequest struct {
 
 // ForwardResponse represents the response to a forward request
 type ForwardResponse struct {
-	Success bool   `json:"success"`
 	Error   string `json:"error,omitempty"`
 	Message string `json:"message,omitempty"`
+	Success bool   `json:"success"`
 }
 
 // GetSocketPath returns the path to the IPC socket
@@ -37,11 +37,11 @@ func GetSocketPath() string {
 // Server represents an IPC server for accepting forward requests
 type Server struct {
 	listener     net.Listener
-	socketPath   string
 	forwardAdder func(ForwardRequest) error
 	stopChan     chan struct{}
-	closed       bool
+	socketPath   string
 	mu           sync.Mutex
+	closed       bool
 }
 
 // NewServer creates a new IPC server

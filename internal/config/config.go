@@ -33,9 +33,9 @@ type ClientConfig struct {
 	Server             string          `mapstructure:"server"`
 	ClientID           string          `mapstructure:"client_id"`
 	PSK                string          `mapstructure:"psk"`
-	CAFile             string          `mapstructure:"ca_file"`              // Optional: CA certificate file for TLS verification
-	InsecureSkipVerify bool            `mapstructure:"insecure_skip_verify"` // Optional: Skip TLS verification (NOT recommended for production)
+	CAFile             string          `mapstructure:"ca_file"`
 	Forwards           []ForwardConfig `mapstructure:"forwards"`
+	InsecureSkipVerify bool            `mapstructure:"insecure_skip_verify"`
 }
 
 // ForwardConfig defines a forwarding rule

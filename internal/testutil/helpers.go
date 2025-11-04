@@ -10,11 +10,11 @@ import (
 
 // TableTest represents a single table-driven test case
 type TableTest struct {
-	Name    string
 	Input   interface{}
 	Want    interface{}
-	WantErr bool
+	Name    string
 	ErrMsg  string
+	WantErr bool
 }
 
 // RunTableTests executes a slice of table tests with a test function
@@ -60,10 +60,10 @@ func RequireNotNil(t *testing.T, object interface{}, msgAndArgs ...interface{}) 
 
 // ValidationTest represents a table test for validation functions
 type ValidationTest struct {
-	Name      string
 	Input     interface{}
-	WantErr   bool
+	Name      string
 	ErrString string
+	WantErr   bool
 }
 
 // RunValidationTests executes validation table tests

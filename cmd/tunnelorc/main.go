@@ -105,9 +105,9 @@ type forwardListener interface {
 // clientState holds the runtime state needed for dynamic forwarding
 type clientState struct {
 	multiplexer   *mux.Multiplexer
+	forwardErrors chan error
 	tcpListeners  []*tcpbridge.TCPListener
 	udpListeners  []*udpbridge.UDPListener
-	forwardErrors chan error
 	mu            sync.Mutex
 }
 

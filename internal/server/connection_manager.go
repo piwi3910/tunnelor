@@ -8,11 +8,11 @@ import (
 
 // ConnectionManager tracks active connections and enforces resource limits
 type ConnectionManager struct {
-	mu                      sync.RWMutex
-	connections             map[string]int // client_id -> connection count
+	connections             map[string]int
 	totalConnections        int
 	maxConnectionsPerClient int
 	maxTotalConnections     int
+	mu                      sync.RWMutex
 }
 
 // NewConnectionManager creates a new connection manager with specified limits
