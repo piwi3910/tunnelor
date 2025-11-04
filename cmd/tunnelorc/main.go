@@ -256,6 +256,125 @@ func setupUDPForward(fwd config.ForwardConfig, multiplexer *mux.Multiplexer) (*u
 	return listener, errChan, nil
 }
 
+// connectAndAuthenticate establishes QUIC connection and authenticates
+func connectAndAuthenticate(cfg *config.ClientConfig) (*quic.Client, error) {
+	// Create QUIC client with proper TLS configuration
+	clientConfig := quic.ClientConfig{
+		ServerAddr:         cfg.Server,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		CAFile:             cfg.CAFile,
+	}
+
+	// Warn if insecure mode is enabled
+	if cfg.InsecureSkipVerify {
+		log.Warn().Msg("TLS certificate verification is disabled - NOT RECOMMENDED for production!")
+	}
+
+	quicClient, err := quic.NewClient(clientConfig)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to create QUIC client")
+		return nil, fmt.Errorf("failed to create QUIC client: %w", err)
+	}
+
+	// Connect to QUIC server
+	if err := quicClient.Connect(); err != nil {
+		if closeErr := quicClient.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close QUIC client after connection error")
+		}
+		log.Error().Err(err).Msg("Failed to connect to QUIC server")
+		return nil, fmt.Errorf("failed to connect to QUIC server: %w", err)
+	}
+
+	log.Info().
+		Str("server", cfg.Server).
+		Str("local_addr", quicClient.Connection().LocalAddr()).
+		Msg("Connected to server")
+
+	// Create control handler
+	controlHandler, err := control.NewClientHandler(cfg.ClientID, cfg.PSK, quicClient.Connection())
+	if err != nil {
+		if closeErr := quicClient.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close QUIC client after handler creation error")
+		}
+		log.Error().Err(err).Msg("Failed to create control handler")
+		return nil, fmt.Errorf("failed to create control handler: %w", err)
+	}
+
+	// Authenticate with server
+	if err := controlHandler.Authenticate(); err != nil {
+		if closeErr := quicClient.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("Failed to close QUIC client after authentication error")
+		}
+		log.Error().Err(err).Msg("Failed to authenticate with server")
+		return nil, fmt.Errorf("failed to authenticate with server: %w", err)
+	}
+
+	log.Info().
+		Str("session_id", controlHandler.GetSessionID()).
+		Msg("Authentication successful")
+
+	return quicClient, nil
+}
+
+// setupInitialForwards sets up all forwards from configuration
+func setupInitialForwards(cfg *config.ClientConfig, multiplexer *mux.Multiplexer, state *clientState) ([]<-chan error, error) {
+	var forwardErrChans []<-chan error
+
+	for _, fwd := range cfg.Forwards {
+		if fwd.Proto == protoTCP {
+			listener, errChan, err := setupTCPForward(fwd, multiplexer)
+			if err != nil {
+				log.Error().Err(err).Str("local", fwd.Local).Msg("Failed to start TCP forward")
+				return nil, fmt.Errorf("failed to setup TCP forward: %w", err)
+			}
+			state.tcpListeners = append(state.tcpListeners, listener)
+			forwardErrChans = append(forwardErrChans, errChan)
+		} else if fwd.Proto == protoUDP {
+			listener, errChan, err := setupUDPForward(fwd, multiplexer)
+			if err != nil {
+				log.Error().Err(err).Str("local", fwd.Local).Msg("Failed to start UDP forward")
+				return nil, fmt.Errorf("failed to setup UDP forward: %w", err)
+			}
+			state.udpListeners = append(state.udpListeners, listener)
+			forwardErrChans = append(forwardErrChans, errChan)
+		}
+	}
+
+	return forwardErrChans, nil
+}
+
+// cleanupListeners closes all TCP and UDP listeners
+func cleanupListeners(state *clientState) {
+	for _, l := range state.tcpListeners {
+		if err := l.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close TCP listener")
+		}
+	}
+	for _, l := range state.udpListeners {
+		if err := l.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close UDP listener")
+		}
+	}
+}
+
+// startIPCServer starts the IPC server for dynamic forwarding
+func startIPCServer(state *clientState) (*ipc.Server, error) {
+	ipcServer, err := ipc.NewServer(state.addForward)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to start IPC server - dynamic forwarding will not be available")
+		return nil, fmt.Errorf("failed to create IPC server: %w", err)
+	}
+
+	// Start IPC server in background
+	go func() {
+		if err := ipcServer.Serve(); err != nil {
+			log.Error().Err(err).Msg("IPC server error")
+		}
+	}()
+
+	return ipcServer, nil
+}
+
 func runConnect(_ *cobra.Command, _ []string) error {
 	// Setup logging
 	logger.SetupFromFlags(verbose, pretty)
@@ -275,65 +394,16 @@ func runConnect(_ *cobra.Command, _ []string) error {
 		Int("forwards", len(cfg.Forwards)).
 		Msg("Client configuration loaded")
 
-	// Create QUIC client with proper TLS configuration
-	clientConfig := quic.ClientConfig{
-		ServerAddr:         cfg.Server,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		CAFile:             cfg.CAFile,
-	}
-
-	// Warn if insecure mode is enabled
-	if cfg.InsecureSkipVerify {
-		log.Warn().Msg("TLS certificate verification is disabled - NOT RECOMMENDED for production!")
-	}
-
-	quicClient, err := quic.NewClient(clientConfig)
+	// Connect and authenticate
+	quicClient, err := connectAndAuthenticate(cfg)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to create QUIC client")
-		return fmt.Errorf("failed to create QUIC client: %w", err)
-	}
-
-	// Connect to QUIC server
-	if err := quicClient.Connect(); err != nil {
-		if closeErr := quicClient.Close(); closeErr != nil {
-			log.Warn().Err(closeErr).Msg("Failed to close QUIC client after connection error")
-		}
-		log.Error().Err(err).Msg("Failed to connect to QUIC server")
-		return fmt.Errorf("failed to connect to QUIC server: %w", err)
-	}
-
-	log.Info().
-		Str("server", cfg.Server).
-		Str("local_addr", quicClient.Connection().LocalAddr()).
-		Msg("Connected to server")
-
-	// Create control handler
-	controlHandler, err := control.NewClientHandler(cfg.ClientID, cfg.PSK, quicClient.Connection())
-	if err != nil {
-		if closeErr := quicClient.Close(); closeErr != nil {
-			log.Warn().Err(closeErr).Msg("Failed to close QUIC client after handler creation error")
-		}
-		log.Error().Err(err).Msg("Failed to create control handler")
-		return fmt.Errorf("failed to create control handler: %w", err)
-	}
-
-	// Authenticate with server
-	if err := controlHandler.Authenticate(); err != nil {
-		if closeErr := quicClient.Close(); closeErr != nil {
-			log.Warn().Err(closeErr).Msg("Failed to close QUIC client after authentication error")
-		}
-		log.Error().Err(err).Msg("Failed to authenticate with server")
-		return fmt.Errorf("failed to authenticate with server: %w", err)
+		return err
 	}
 	defer func() {
 		if err := quicClient.Close(); err != nil {
 			log.Warn().Err(err).Msg("Failed to close QUIC client")
 		}
 	}()
-
-	log.Info().
-		Str("session_id", controlHandler.GetSessionID()).
-		Msg("Authentication successful")
 
 	// Create multiplexer for opening streams
 	multiplexer := mux.NewMultiplexer(quicClient.Connection())
@@ -355,32 +425,9 @@ func runConnect(_ *cobra.Command, _ []string) error {
 	}
 
 	// Setup initial forwards from config
-	var forwardErrChans []<-chan error
-	setupSuccess := true
-	for _, fwd := range cfg.Forwards {
-		if fwd.Proto == protoTCP {
-			listener, errChan, err := setupTCPForward(fwd, multiplexer)
-			if err != nil {
-				log.Error().Err(err).Str("local", fwd.Local).Msg("Failed to start TCP forward")
-				setupSuccess = false
-				break
-			}
-			state.tcpListeners = append(state.tcpListeners, listener)
-			forwardErrChans = append(forwardErrChans, errChan)
-		} else if fwd.Proto == protoUDP {
-			listener, errChan, err := setupUDPForward(fwd, multiplexer)
-			if err != nil {
-				log.Error().Err(err).Str("local", fwd.Local).Msg("Failed to start UDP forward")
-				setupSuccess = false
-				break
-			}
-			state.udpListeners = append(state.udpListeners, listener)
-			forwardErrChans = append(forwardErrChans, errChan)
-		}
-	}
-
-	if !setupSuccess {
-		return fmt.Errorf("failed to setup forwards")
+	forwardErrChans, err := setupInitialForwards(cfg, multiplexer, state)
+	if err != nil {
+		return err
 	}
 
 	// Merge all error channels into state's error channel
@@ -393,37 +440,21 @@ func runConnect(_ *cobra.Command, _ []string) error {
 	}
 
 	// Start IPC server for dynamic forwarding
-	ipcServer, err := ipc.NewServer(state.addForward)
+	ipcServer, err := startIPCServer(state)
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to start IPC server - dynamic forwarding will not be available")
-	} else {
+		// Non-fatal - continue without dynamic forwarding
+		log.Debug().Err(err).Msg("IPC server not available")
+	}
+	if ipcServer != nil {
 		defer func() {
 			if err := ipcServer.Close(); err != nil {
 				log.Warn().Err(err).Msg("Failed to close IPC server")
 			}
 		}()
-
-		// Start IPC server in background
-		go func() {
-			if err := ipcServer.Serve(); err != nil {
-				log.Error().Err(err).Msg("IPC server error")
-			}
-		}()
 	}
 
 	// Clean up listeners on exit
-	defer func() {
-		for _, l := range state.tcpListeners {
-			if err := l.Close(); err != nil {
-				log.Warn().Err(err).Msg("Failed to close TCP listener")
-			}
-		}
-		for _, l := range state.udpListeners {
-			if err := l.Close(); err != nil {
-				log.Warn().Err(err).Msg("Failed to close UDP listener")
-			}
-		}
-	}()
+	defer cleanupListeners(state)
 
 	log.Info().Msg("Tunnelorc client ready")
 

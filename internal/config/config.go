@@ -190,24 +190,37 @@ func validateClientConfig(cfg *ClientConfig) error {
 	}
 
 	// Validate forwards
-	for i, fwd := range cfg.Forwards {
-		if fwd.Local == "" {
-			return fmt.Errorf("forward[%d].local is required", i)
-		}
-		if err := validateAddress(fwd.Local); err != nil {
-			return fmt.Errorf("forward[%d].local invalid: %w", i, err)
-		}
+	return validateForwards(cfg.Forwards)
+}
 
-		if fwd.Remote == "" {
-			return fmt.Errorf("forward[%d].remote is required", i)
+// validateForwards validates all forward configurations
+func validateForwards(forwards []ForwardConfig) error {
+	for i, fwd := range forwards {
+		if err := validateForward(i, fwd); err != nil {
+			return err
 		}
-		if err := validateAddress(fwd.Remote); err != nil {
-			return fmt.Errorf("forward[%d].remote invalid: %w", i, err)
-		}
+	}
+	return nil
+}
 
-		if fwd.Proto != "tcp" && fwd.Proto != "udp" {
-			return fmt.Errorf("forward[%d].proto must be 'tcp' or 'udp', got '%s'", i, fwd.Proto)
-		}
+// validateForward validates a single forward configuration
+func validateForward(index int, fwd ForwardConfig) error {
+	if fwd.Local == "" {
+		return fmt.Errorf("forward[%d].local is required", index)
+	}
+	if err := validateAddress(fwd.Local); err != nil {
+		return fmt.Errorf("forward[%d].local invalid: %w", index, err)
+	}
+
+	if fwd.Remote == "" {
+		return fmt.Errorf("forward[%d].remote is required", index)
+	}
+	if err := validateAddress(fwd.Remote); err != nil {
+		return fmt.Errorf("forward[%d].remote invalid: %w", index, err)
+	}
+
+	if fwd.Proto != "tcp" && fwd.Proto != "udp" {
+		return fmt.Errorf("forward[%d].proto must be 'tcp' or 'udp', got '%s'", index, fwd.Proto)
 	}
 
 	return nil
