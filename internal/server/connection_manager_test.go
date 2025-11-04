@@ -11,9 +11,7 @@ import (
 
 func TestNewConnectionManager(t *testing.T) {
 	cm := NewConnectionManager(10, 100)
-	if cm == nil {
-		require.Fail(t, "NewConnectionManager returned nil")
-	}
+	require.NotNil(t, cm, "NewConnectionManager returned nil")
 
 	if cm.maxConnectionsPerClient != 10 {
 		t.Errorf("maxConnectionsPerClient = %d, want 10", cm.maxConnectionsPerClient)

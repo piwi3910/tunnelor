@@ -11,9 +11,8 @@ import (
 
 func TestNewServer(t *testing.T) {
 	server := NewServer(9090)
-	if server == nil {
-		require.Fail(t, "NewServer returned nil")
-	}
+	require.NotNil(t, server, "NewServer returned nil")
+
 	if server.port != 9090 {
 		t.Errorf("NewServer port = %d, want 9090", server.port)
 	}

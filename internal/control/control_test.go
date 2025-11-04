@@ -421,10 +421,8 @@ func TestNewClientHandler(t *testing.T) {
 
 	handler, err := NewClientHandler(clientID, psk, nil)
 	require.NoError(t, err, "NewClientHandler() should not return error")
+	require.NotNil(t, handler, "NewClientHandler() returned nil")
 
-	if handler == nil {
-		require.Fail(t, "NewClientHandler() returned nil")
-	}
 	if handler.clientID != clientID {
 		assert.Equal(t, clientID, handler.clientID, "clientID should match expected value")
 	}
@@ -477,10 +475,8 @@ func TestNewServerHandler(t *testing.T) {
 
 	handler, err := NewServerHandler(pskMap, nil)
 	require.NoError(t, err, "NewServerHandler() should not return error")
+	require.NotNil(t, handler, "NewServerHandler() returned nil")
 
-	if handler == nil {
-		require.Fail(t, "NewServerHandler() returned nil")
-	}
 	if len(handler.pskCacheMap) != 2 {
 		t.Errorf("pskCacheMap length = %v, want 2", len(handler.pskCacheMap))
 	}
