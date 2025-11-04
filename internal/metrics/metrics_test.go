@@ -54,7 +54,7 @@ func TestStartFunction(t *testing.T) {
 	}
 }
 
-func TestRecordConnectionStart(t *testing.T) {
+func TestRecordConnectionStart(_ *testing.T) {
 	// Reset metrics
 	ActiveConnections.Set(0)
 
@@ -65,45 +65,45 @@ func TestRecordConnectionStart(t *testing.T) {
 	// using the prometheus registry, but we can verify no panics
 }
 
-func TestRecordConnectionEnd(t *testing.T) {
+func TestRecordConnectionEnd(_ *testing.T) {
 	duration := 5 * time.Second
 	RecordConnectionEnd(duration)
 	// Verify no panics
 }
 
-func TestRecordStreamOpen(t *testing.T) {
+func TestRecordStreamOpen(_ *testing.T) {
 	RecordStreamOpen("tcp")
 	RecordStreamOpen("udp")
 	RecordStreamOpen("control")
 	// Verify no panics
 }
 
-func TestRecordStreamClose(t *testing.T) {
+func TestRecordStreamClose(_ *testing.T) {
 	RecordStreamClose("tcp")
 	RecordStreamClose("udp")
 	// Verify no panics
 }
 
-func TestRecordStreamError(t *testing.T) {
+func TestRecordStreamError(_ *testing.T) {
 	RecordStreamError("tcp")
 	RecordStreamError("udp")
 	// Verify no panics
 }
 
-func TestRecordBytesTransferred(t *testing.T) {
+func TestRecordBytesTransferred(_ *testing.T) {
 	RecordBytesTransferred("tcp", "sent", 1024)
 	RecordBytesTransferred("tcp", "received", 2048)
 	RecordBytesTransferred("udp", "sent", 512)
 	// Verify no panics
 }
 
-func TestRecordAuthAttempt(t *testing.T) {
+func TestRecordAuthAttempt(_ *testing.T) {
 	RecordAuthAttempt(true)
 	RecordAuthAttempt(false)
 	// Verify no panics
 }
 
-func TestRecordStreamLatency(t *testing.T) {
+func TestRecordStreamLatency(_ *testing.T) {
 	duration := 100 * time.Millisecond
 	RecordStreamLatency("tcp", "open", duration)
 	RecordStreamLatency("udp", "close", duration)
@@ -111,13 +111,13 @@ func TestRecordStreamLatency(t *testing.T) {
 	// Verify no panics
 }
 
-func TestRecordStreamReconnect(t *testing.T) {
+func TestRecordStreamReconnect(_ *testing.T) {
 	RecordStreamReconnect("tcp")
 	RecordStreamReconnect("udp")
 	// Verify no panics
 }
 
-func TestSetUDPSessionCount(t *testing.T) {
+func TestSetUDPSessionCount(_ *testing.T) {
 	SetUDPSessionCount(10)
 	SetUDPSessionCount(0)
 	SetUDPSessionCount(100)
@@ -189,7 +189,7 @@ func TestMetricsHTTPResponse(t *testing.T) {
 	}
 }
 
-func TestConcurrentMetricRecording(t *testing.T) {
+func TestConcurrentMetricRecording(_ *testing.T) {
 	// Test concurrent access to metrics
 	done := make(chan bool)
 

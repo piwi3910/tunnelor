@@ -20,7 +20,7 @@ func TestGetSocketPath(t *testing.T) {
 
 func TestNewServer(t *testing.T) {
 	// Create a mock forward adder
-	adder := func(req ForwardRequest) error {
+	adder := func(_ ForwardRequest) error {
 		return nil
 	}
 
@@ -35,7 +35,7 @@ func TestNewServer(t *testing.T) {
 
 func TestServerServeAndClose(t *testing.T) {
 	// Create a mock forward adder
-	adder := func(req ForwardRequest) error {
+	adder := func(_ ForwardRequest) error {
 		return nil
 	}
 
@@ -159,7 +159,7 @@ func TestForwardResponseJSON(t *testing.T) {
 
 func TestServerHandleInvalidJSON(t *testing.T) {
 	// Create a mock forward adder
-	adder := func(req ForwardRequest) error {
+	adder := func(_ ForwardRequest) error {
 		return nil
 	}
 
