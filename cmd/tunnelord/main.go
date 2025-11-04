@@ -120,6 +120,19 @@ func runServer(_ *cobra.Command, _ []string) {
 		log.Info().Msg("No connection limits configured (unlimited)")
 	}
 
+	// Create forward registry and load configured forwards
+	forwardRegistry := server.NewForwardRegistry()
+	if err := forwardRegistry.LoadFromConfig(cfg.Forwards); err != nil {
+		log.Error().Err(err).Msg("Failed to load forward configuration")
+		return
+	}
+
+	if forwardRegistry.Count() > 0 {
+		log.Info().
+			Int("forward_count", forwardRegistry.Count()).
+			Msg("Reverse tunnel forwards loaded from configuration")
+	}
+
 	log.Info().Msg("Tunnelord server started successfully")
 
 	// Start accepting connections in background
@@ -132,7 +145,7 @@ func runServer(_ *cobra.Command, _ []string) {
 			}
 
 			// Handle connection in goroutine
-			go handleConnection(conn, cfg.Auth.PSKMap, connMgr)
+			go handleConnection(conn, cfg.Auth.PSKMap, connMgr, forwardRegistry)
 		}
 	}()
 
@@ -144,7 +157,7 @@ func runServer(_ *cobra.Command, _ []string) {
 	log.Info().Msg("Shutting down Tunnelord server...")
 }
 
-func handleConnection(conn *quic.Connection, pskMap map[string]string, connMgr *server.ConnectionManager) {
+func handleConnection(conn *quic.Connection, pskMap map[string]string, connMgr *server.ConnectionManager, forwardRegistry *server.ForwardRegistry) {
 	startTime := time.Now()
 
 	log.Info().
@@ -227,6 +240,56 @@ func handleConnection(conn *quic.Connection, pskMap map[string]string, connMgr *
 
 	// Register default handlers
 	mux.RegisterDefaultHandlers(multiplexer)
+
+	// Start public listeners for this client's configured forwards
+	var publicListeners []*server.PublicListener
+	clientForwards := forwardRegistry.GetForwardsByClient(clientID)
+	if len(clientForwards) > 0 {
+		log.Info().
+			Str("client_id", clientID).
+			Int("forward_count", len(clientForwards)).
+			Msg("Starting public listeners for reverse tunnels")
+
+		for _, fwd := range clientForwards {
+			listener, err := server.NewPublicListener(fwd, multiplexer)
+			if err != nil {
+				log.Error().
+					Err(err).
+					Str("forward_id", fwd.ID).
+					Str("local", fwd.Local).
+					Msg("Failed to create public listener")
+				continue
+			}
+
+			publicListeners = append(publicListeners, listener)
+
+			// Start listener in background
+			go func(pl *server.PublicListener) {
+				if err := pl.Start(); err != nil {
+					log.Error().
+						Err(err).
+						Str("forward_id", fwd.ID).
+						Msg("Public listener error")
+				}
+			}(listener)
+
+			log.Info().
+				Str("forward_id", fwd.ID).
+				Str("local", fwd.Local).
+				Str("remote", fwd.Remote).
+				Str("proto", fwd.Proto).
+				Msg("Public listener started for reverse tunnel")
+		}
+	}
+
+	// Close all public listeners when connection ends
+	defer func() {
+		for _, listener := range publicListeners {
+			if err := listener.Close(); err != nil {
+				log.Warn().Err(err).Msg("Failed to close public listener")
+			}
+		}
+	}()
 
 	log.Info().
 		Str("remote_addr", conn.RemoteAddr()).
